@@ -5,13 +5,14 @@
       Package versions are <dd-sdk-ios version>.<binding revision>, e.g. 3.14.0.1 - the same
       scheme the two platform binding repositories use, and deliberately the *iOS* line.
 
-      This repository binds nothing itself. It is a cross-platform façade over two independently
+      This repository binds nothing itself. It is a cross-platform façade over three independently
       versioned package sets:
 
-        DatadogNet.iOS      3.14.0.1   -> dd-sdk-ios     3.14.0
-        DatadogNet.Android  3.12.1.1   -> dd-sdk-android 3.12.1
+        DatadogNet.iOS      3.14.0.x   -> dd-sdk-ios     3.14.0
+        DatadogNet.Android  3.12.1.x   -> dd-sdk-android 3.12.1
+        DatadogNet.Mac      3.14.0.x   -> dd-sdk-ios     3.14.0, built for Mac Catalyst
 
-      Those two never move in lock-step: Datadog releases the iOS and Android SDKs on separate
+      These never move in lock-step: Datadog releases the iOS and Android SDKs on separate
       cadences and the version numbers have never matched. A façade therefore has to pick one line
       to name itself after or invent a third numbering nobody can map back to anything. It picks
       iOS, because that is the line whose version is furthest ahead and so the one a reader is most
@@ -27,11 +28,11 @@
       docs/native-surface.md for what is covered.
     -->
     <DatadogNativeVersion>3.14.0</DatadogNativeVersion>
-    <DatadogBindingRevision>2</DatadogBindingRevision>
+    <DatadogBindingRevision>3</DatadogBindingRevision>
     <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
 
     <!--
-      The two platform binding package sets this façade is compiled against. Pinned exactly rather
+      The iOS and Android binding package sets this façade is compiled against. Pinned exactly rather
       than as a floating range: the façade calls into the hand-written convenience layers in both
       repositories (RumMonitorExtensions, DDRUMMonitor.Ergonomics and friends), which are not
       covered by any compatibility promise, and a floating reference would turn a change there into
@@ -47,6 +48,16 @@
     <DatadogNetiOSVersion>3.14.0.2</DatadogNetiOSVersion>
     <DatadogNetAndroidVersion>3.12.1.2</DatadogNetAndroidVersion>
     <DatadogAndroidNativeVersion>3.12.1</DatadogAndroidNativeVersion>
+
+    <!--
+      The Mac Catalyst binding package set, from the DatadogNet.Mac repository. Same native SDK as
+      DatadogNetiOSVersion - dd-sdk-ios is the SDK that runs on Catalyst - but built from source
+      there, since Datadog publishes no Catalyst binaries, and revisioned independently. The two
+      must wrap the same dd-sdk-ios release (first three components) for the shared Platforms/iOS
+      implementation to be honest about what it calls into; the fourth component is each
+      repository's own.
+    -->
+    <DatadogNetMacVersion>3.14.0.1</DatadogNetMacVersion>
   </PropertyGroup>
 
   <!--
@@ -89,10 +100,12 @@
     <DatadogNetVersionMoniker Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0;net9.0</DatadogNetVersionMoniker>
     <DatadogAndroidTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-android34.0;net9.0-android35.0</DatadogAndroidTargetFramework>
     <DatadogiOSTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-ios18.0;net9.0-ios18.0</DatadogiOSTargetFramework>
+    <DatadogMacTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-maccatalyst18.0;net9.0-maccatalyst18.0</DatadogMacTargetFramework>
 
     <DatadogNetVersionMoniker Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0</DatadogNetVersionMoniker>
     <DatadogAndroidTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-android36.0</DatadogAndroidTargetFramework>
     <DatadogiOSTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-ios26.0</DatadogiOSTargetFramework>
+    <DatadogMacTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-maccatalyst26.0</DatadogMacTargetFramework>
 
     <!--
       The plain net9.0/net10.0 asset is not padding. A MAUI app routinely also has a Windows or Mac
@@ -102,7 +115,7 @@
       Windows head links an implementation whose every member is a documented no-op. See
       Platforms/Unsupported.
     -->
-    <DatadogTargetFrameworks>$(DatadogNetVersionMoniker);$(DatadogAndroidTargetFramework);$(DatadogiOSTargetFramework)</DatadogTargetFrameworks>
+    <DatadogTargetFrameworks>$(DatadogNetVersionMoniker);$(DatadogAndroidTargetFramework);$(DatadogiOSTargetFramework);$(DatadogMacTargetFramework)</DatadogTargetFrameworks>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -129,6 +142,12 @@
     -->
     <DatadogSupportedIosVersion>12.2</DatadogSupportedIosVersion>
     <DatadogSupportedAndroidVersion>23</DatadogSupportedAndroidVersion>
+    <!--
+      15.0 (macOS 12) on Mac Catalyst, matching the DatadogNet.Mac binding packages: it is both
+      the floor the .NET 9 maccatalyst workload enforces for apps and the macOS line Datadog's
+      own Catalyst support statement starts at.
+    -->
+    <DatadogSupportedMacCatalystVersion>15.0</DatadogSupportedMacCatalystVersion>
   </PropertyGroup>
 
   <PropertyGroup>

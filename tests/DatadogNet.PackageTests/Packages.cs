@@ -35,12 +35,15 @@ public static class Packages
         "net8.0",
         "net8.0-android34.0",
         "net8.0-ios18.0",
+        "net8.0-maccatalyst18.0",
         "net9.0",
         "net9.0-android35.0",
         "net9.0-ios18.0",
+        "net9.0-maccatalyst18.0",
         "net10.0",
         "net10.0-android36.0",
         "net10.0-ios26.0",
+        "net10.0-maccatalyst26.0",
     ];
 
     /// <summary>The target frameworks a package with <c>mobile</c> heads must carry.</summary>
@@ -48,10 +51,13 @@ public static class Packages
     [
         "net8.0-android34.0",
         "net8.0-ios18.0",
+        "net8.0-maccatalyst18.0",
         "net9.0-android35.0",
         "net9.0-ios18.0",
+        "net9.0-maccatalyst18.0",
         "net10.0-android36.0",
         "net10.0-ios26.0",
+        "net10.0-maccatalyst26.0",
     ];
 
     /// <summary>The DatadogNet.Android packages the android assets must depend on.</summary>
@@ -87,6 +93,23 @@ public static class Packages
         "DatadogNet.RUM.iOS",
         "DatadogNet.SessionReplay.iOS",
         "DatadogNet.Trace.iOS",
+    ];
+
+    /// <summary>The DatadogNet.Mac packages the maccatalyst assets must depend on.</summary>
+    /// <remarks>
+    /// The same five modules as iOS: the maccatalyst head compiles the Platforms/iOS
+    /// implementation, so it calls into exactly the same types - supplied by the DatadogNet.Mac
+    /// packages, whose binding definitions are verbatim copies of the iOS ones over
+    /// Catalyst-built natives. SessionReplay is in the list although Datadog does not support
+    /// replay on Catalyst, because the shared implementation references its types and must link.
+    /// </remarks>
+    public static readonly string[] MacBindingDependencies =
+    [
+        "DatadogNet.Core.Mac",
+        "DatadogNet.Logs.Mac",
+        "DatadogNet.RUM.Mac",
+        "DatadogNet.SessionReplay.Mac",
+        "DatadogNet.Trace.Mac",
     ];
 
     /// <summary>xunit member data: one row per package.</summary>

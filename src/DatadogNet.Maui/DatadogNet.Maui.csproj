@@ -4,8 +4,8 @@
 
   <PropertyGroup>
     <!--
-      Android and iOS only, with no platform-neutral asset - which is the one place this package
-      differs from DatadogNet, and it is not a choice.
+      Android, iOS and Mac Catalyst only, with no platform-neutral asset - which is the one place
+      this package differs from DatadogNet, and it is not a choice.
 
       Microsoft.Maui.Controls is a metapackage with no lib/ assets: the reference assemblies come
       from the installed MAUI workload, selected by target platform. There is no platform-neutral
@@ -16,12 +16,14 @@
       They ship anyway so that such an app fails with the Android SDK's own error rather than a
       restore error blaming this package. See Directory.Build.props.
 
-      So a MAUI app with a Windows or Mac Catalyst head guards this one reference by platform,
-      exactly as the DatadogNet.iOS and DatadogNet.Android READMEs describe for the bindings
-      themselves. DatadogNet - where the API a view-model actually calls lives - still needs no
-      guard, so the conditional stays in the .csproj rather than spreading into the code.
+      So a MAUI app with a Windows head guards this one reference by platform, exactly as the
+      binding repositories' READMEs describe for the bindings themselves. The Mac Catalyst head
+      stopped needing that guard when the DatadogNet.Mac bindings arrived: its MAUI head is
+      first-class here, compiling the same Platforms/iOS-shaped integration the iOS head uses.
+      DatadogNet - where the API a view-model actually calls lives - still needs no guard, so the
+      conditional stays in the .csproj rather than spreading into the code.
     -->
-    <TargetFrameworks>$(DatadogAndroidTargetFramework);$(DatadogiOSTargetFramework)</TargetFrameworks>
+    <TargetFrameworks>$(DatadogAndroidTargetFramework);$(DatadogiOSTargetFramework);$(DatadogMacTargetFramework)</TargetFrameworks>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
 
@@ -32,8 +34,20 @@
       from page navigation, an ILogger provider, unhandled-exception reporting and HttpClient
       instrumentation.
     </Description>
-    <PackageTags>datadog;maui;rum;logging;tracing;ilogger;observability;android;ios</PackageTags>
+    <PackageTags>datadog;maui;rum;logging;tracing;ilogger;observability;android;ios;maccatalyst</PackageTags>
   </PropertyGroup>
+
+  <!--
+    The Mac Catalyst head cannot ride Datadog.Facade.props's "Catalyst compiles Platforms/iOS"
+    arrangement: this is the one UseMaui+SingleProject project, and MAUI's single-project targets
+    remove Platforms/iOS/** from every non-iOS head *after* the props' item groups have run. So
+    the Catalyst implementation lives in Platforms/MacCatalyst - re-included here because the
+    props' blanket Platforms/** removal runs on it too.
+  -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+    <Compile Include="Platforms/MacCatalyst/**/*.cs" />
+    <None Remove="Platforms/MacCatalyst/**/*.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../DatadogNet/DatadogNet.csproj" />
