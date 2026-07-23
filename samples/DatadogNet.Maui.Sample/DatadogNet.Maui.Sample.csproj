@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      The net10 band. MAUI 9 cannot build against the AndroidX generation the Datadog Android
+      bindings depend on - a plain MAUI 9 app with nothing but Xamarin.AndroidX.AppCompat 1.7.1.1
+      added, and no Datadog package anywhere, fails generating Java callable wrappers with a
+      NullReferenceException inside the .NET Android SDK. That is an SDK defect rather than anything
+      the bindings do, and it is why the packages' floor is net9 while this sample's is net10.
+    -->
+    <TargetFrameworks>net10.0-android36.0;net10.0-ios26.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <CheckEolWorkloads>false</CheckEolWorkloads>
+    <!-- See the note in src/Datadog.Facade.props: a property of the AndroidX graph, not of this. -->
+    <NoWarn>$(NoWarn);NU1608</NoWarn>
+
+    <ApplicationTitle>DatadogNet Sample</ApplicationTitle>
+    <ApplicationId>com.sbokatuk.datadognet.sample</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">12.2</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <!--
+    Consumes the packed packages from ./artifacts rather than the projects, exactly as a real app
+    would - so this is what checks the published API is still usable the way the README documents.
+    See NuGet.config for the local feed.
+  -->
+  <PropertyGroup>
+    <DatadogPackageVersion Condition=" '$(DatadogPackageVersion)' == '' ">$(VersionPrefix)</DatadogPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DatadogNet.Maui" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.CrashReporting" Version="$(DatadogPackageVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiFont Include="Resources\Fonts\*" />
+  </ItemGroup>
+
+</Project>

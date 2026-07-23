@@ -1,0 +1,200 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: resolve release version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      ios-version: ${{ steps.resolve.outputs.ios-version }}
+      android-version: ${{ steps.resolve.outputs.android-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: resolve
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if ! printf '%s' "${version}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::tag '${GITHUB_REF_NAME}' does not look like a version (expected e.g. v2.30.2.1)"
+            exit 1
+          fi
+
+          # Unlike the two binding repositories, the tag does *not* select which native SDK is
+          # bound: this repository binds nothing, and which platform packages it compiles against is
+          # pinned in Directory.Build.props. Releasing an older line means checking out that commit
+          # and tagging it, not tagging a different version on this one - so the versions reported
+          # in the notes are read from the working tree rather than derived from the tag.
+          ios=$(sed -n 's:.*<DatadogNetiOSVersion>\(.*\)</DatadogNetiOSVersion>.*:\1:p' Directory.Build.props | head -1)
+          android=$(sed -n 's:.*<DatadogNetAndroidVersion>\(.*\)</DatadogNetAndroidVersion>.*:\1:p' Directory.Build.props | head -1)
+          if [ -z "${ios}" ] || [ -z "${android}" ]; then
+            echo "::error::could not read the platform package versions from Directory.Build.props"
+            exit 1
+          fi
+
+          expected=$(sed -n 's:.*<DatadogNativeVersion>\(.*\)</DatadogNativeVersion>.*:\1:p' Directory.Build.props | head -1).$(sed -n 's:.*<DatadogBindingRevision>\(.*\)</DatadogBindingRevision>.*:\1:p' Directory.Build.props | head -1)
+          if [ "${version%%-*}" != "${expected}" ]; then
+            # A tag that disagrees with the working tree would publish packages whose version says
+            # one thing and whose pinned dependencies say another, and nothing downstream could tell.
+            echo "::error::tag '${GITHUB_REF_NAME}' does not match Directory.Build.props (${expected}). Bump the props or move the tag."
+            exit 1
+          fi
+
+          case "${version}" in
+            *-*) prerelease=true ;;
+            *)   prerelease=false ;;
+          esac
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+          echo "ios-version=${ios}" >> "$GITHUB_OUTPUT"
+          echo "android-version=${android}" >> "$GITHUB_OUTPUT"
+          echo "Releasing ${version} (prerelease=${prerelease})" >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: build
+    needs: version
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+      # The sample is a compile check on the public API, and the commit being tagged has already
+      # been through it on its pull request. Building it again here would put a MAUI workload
+      # install between the packages being built and being published, for a result already known.
+      build-sample: false
+
+  publish:
+    name: publish to nuget.org and create release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    # Must match the Environment on the nuget.org trusted publishing policy for this workflow.
+    environment: nuget.org
+    permissions:
+      # contents: write creates the GitHub release; id-token: write lets the job request the OIDC
+      # token that nuget.org exchanges for a short-lived API key. Without the latter the token
+      # request fails silently and the login step gets no key.
+      contents: write
+      id-token: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Needed to find the previous tag when generating the changelog.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts
+
+      # nuget.org is published to first: a GitHub release linking to packages that failed to upload
+      # would be worse than a release created a moment late.
+      # Deliberately immediately before the push: the issued key is valid for one hour, and each
+      # OIDC token can be exchanged exactly once.
+      - name: Authenticate to nuget.org
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to nuget.org
+        run: |
+          dotnet nuget push "artifacts/*.nupkg" \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+            --skip-duplicate
+
+      - name: Compose release notes
+        env:
+          IOS_VERSION: ${{ needs.version.outputs.ios-version }}
+          ANDROID_VERSION: ${{ needs.version.outputs.android-version }}
+        run: |
+          previous=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+
+          # A curated docs/release-notes/<version>.md replaces the generated commit list when one
+          # exists. The second lookup drops the prerelease suffix, so v2.30.2.1-beta.2 reuses the
+          # notes written for 2.30.2.1 rather than silently falling back to raw commit subjects.
+          notes="docs/release-notes/${VERSION}.md"
+          [ -f "${notes}" ] || notes="docs/release-notes/${VERSION%%-*}.md"
+
+          {
+            if [ -f "${notes}" ]; then
+              echo "==> using curated notes from ${notes}" >&2
+              cat "${notes}"
+            else
+              echo "## What's changed"
+              echo
+              if [ -n "${previous}" ]; then
+                git log --no-merges --pretty='- %s (%h)' "${previous}..${GITHUB_REF_NAME}"
+              else
+                echo "Initial release."
+              fi
+            fi
+            echo
+            if [ -n "${previous}" ]; then
+              echo "**Full changelog**: ${{ github.server_url }}/${{ github.repository }}/compare/${previous}...${GITHUB_REF_NAME}"
+              echo
+            fi
+
+            echo "## Packages"
+            echo
+            echo "Built against [\`DatadogNet.iOS ${IOS_VERSION}\`](https://github.com/sbokatuk/DatadogNet.iOS/releases/tag/v${IOS_VERSION}) and [\`DatadogNet.Android ${ANDROID_VERSION}\`](https://github.com/sbokatuk/DatadogNet.Android/releases/tag/v${ANDROID_VERSION}) — dd-sdk-ios \`${IOS_VERSION%.*}\` and dd-sdk-android \`${ANDROID_VERSION%.*}\`."
+            echo
+            echo "> The version names the *iOS* line, because the two native SDKs are released on"
+            echo "> separate cadences and never share a version number. The fourth component is this"
+            echo "> repository's own revision."
+            echo
+            echo "| Package | Target frameworks | NuGet |"
+            echo "| --- | --- | --- |"
+            # Generated from build/packages.tsv, the same file the build script and the package
+            # tests read, so this table cannot drift out of step with what was actually published.
+            while IFS=$'\t' read -r id heads _rest; do
+              case "${id}" in ''|\#*) continue ;; esac
+              case "${heads}" in
+                mobile) tfms='`net8.0-android34.0`, `net8.0-ios18.0`, `net9.0-android35.0`, `net9.0-ios18.0`, `net10.0-android36.0`, `net10.0-ios26.0`' ;;
+                *)      tfms='`net8.0`, `net8.0-android34.0`, `net8.0-ios18.0`, `net9.0`, `net9.0-android35.0`, `net9.0-ios18.0`, `net10.0`, `net10.0-android36.0`, `net10.0-ios26.0`' ;;
+              esac
+              echo "| \`${id}\` | ${tfms} | [${VERSION}](https://www.nuget.org/packages/${id}/${VERSION}) |"
+            done < build/packages.tsv
+            echo
+            echo "\`\`\`"
+            echo "dotnet add package DatadogNet.Maui --version ${VERSION}"
+            echo "\`\`\`"
+            echo
+            echo "## Licensing"
+            echo
+            echo "The code in this repository is MIT. It depends on DatadogNet.iOS and"
+            echo "DatadogNet.Android, whose packages ship native binaries built and published by"
+            echo "Datadog under Apache-2.0. Each package declares \`MIT AND Apache-2.0\` and ships"
+            echo "both texts under \`licenses/\`."
+          } > release-notes.md
+
+          cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The packages themselves are not attached: nuget.org is the distribution channel, and the
+          # notes link to every published package instead.
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${VERSION}" \
+            --notes-file release-notes.md \
+            ${{ needs.version.outputs.prerelease == 'true' && '--prerelease' || '' }}

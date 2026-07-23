@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:dd="clr-namespace:DatadogNet.Maui;assembly=DatadogNet.Maui"
+             x:Class="DatadogNet.Maui.Sample.MainPage"
+             Title="DatadogNet"
+             dd:DatadogTracking.ViewName="Home">
+
+    <!--
+        dd:DatadogTracking.ViewName names the RUM view. Without it the view would be called
+        "MainPage" - the type name - which is rarely what you would search for.
+
+        The page is reported as a view with no code at all: DatadogNet.Maui subscribes to
+        Application.PageAppearing and PageDisappearing. Neither native SDK can do this, because a
+        MAUI page is not a UIViewController and not an Activity.
+    -->
+
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="12">
+
+            <Label x:Name="StatusLabel"
+                   FontSize="14"
+                   TextColor="Gray" />
+
+            <Label Text="RUM" FontSize="20" FontAttributes="Bold" Margin="0,12,0,0" />
+
+            <Button Text="Report a tap action" Clicked="OnReportAction" />
+            <Button Text="Report a handled error" Clicked="OnReportError" />
+            <Button Text="Report a custom view with a timing" Clicked="OnReportView" />
+            <Button Text="Record a feature flag evaluation" Clicked="OnReportFeatureFlag" />
+            <Button Text="Show the current session id" Clicked="OnShowSessionId" />
+
+            <Label Text="Logs" FontSize="20" FontAttributes="Bold" Margin="0,12,0,0" />
+
+            <Button Text="Write one log at every level" Clicked="OnWriteLogs" />
+            <Button Text="Log an exception" Clicked="OnLogException" />
+            <Button Text="Write through ILogger&lt;MainPage&gt;" Clicked="OnWriteThroughILogger" />
+
+            <Label Text="Trace" FontSize="20" FontAttributes="Bold" Margin="0,12,0,0" />
+
+            <Button Text="Run a traced operation" Clicked="OnRunTracedOperation" />
+            <Button Text="Make an instrumented HTTP request" Clicked="OnMakeHttpRequest" />
+
+            <Label Text="Session Replay and identity" FontSize="20" FontAttributes="Bold" Margin="0,12,0,0" />
+
+            <Button Text="Pause recording" Clicked="OnPauseRecording" />
+            <Button Text="Resume recording" Clicked="OnResumeRecording" />
+            <Button Text="Sign in as a user" Clicked="OnSignIn" />
+            <Button Text="Sign out" Clicked="OnSignOut" />
+
+            <Label Text="Navigation" FontSize="20" FontAttributes="Bold" Margin="0,12,0,0" />
+
+            <Button Text="Push the details page" Clicked="OnPushDetails" />
+
+            <Label Text="Output" FontSize="20" FontAttributes="Bold" Margin="0,12,0,0" />
+
+            <Label x:Name="OutputLabel"
+                   FontSize="13"
+                   FontFamily="Monospace"
+                   LineBreakMode="WordWrap" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

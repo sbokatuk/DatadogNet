@@ -1,0 +1,102 @@
+<Project>
+
+  <!--
+    Everything the façade packages share, so each .csproj is its identity and its dependencies.
+    Imported explicitly rather than being a Directory.Build.props of its own, so that the tests and
+    the sample - which live outside src/ and are not packages - do not pick any of it up.
+  -->
+
+  <PropertyGroup>
+    <TargetFrameworks>$(DatadogTargetFrameworks)</TargetFrameworks>
+    <IsPackable>true</IsPackable>
+
+    <!--
+      Note what is deliberately *not* suppressed: CS1591, the missing-documentation warning. The
+      public API is the product here, so an undocumented public member is a defect rather than a
+      style preference - GenerateDocumentationFile in Directory.Build.props turns it on and
+      TreatWarningsAsErrors makes it fatal.
+
+      NU1608 is a property of the AndroidX graph the Datadog Android bindings pull in, not of
+      anything this repository does: several AndroidX packages declare an exact-range dependency on
+      a sibling (SavedState.Ktx wants SavedState [1.3.2, 1.3.3), Lifecycle.Process wants
+      Lifecycle.Runtime [2.9.2.1, 2.9.3)) while another package in the same graph floats the
+      sibling above that range. NuGet resolves the higher version, warns, and produces a working
+      app - which is why DatadogNet.Android ships against exactly this set and its emulator tests
+      pass.
+
+      Suppressed rather than pinned. Pinning the versions here would turn them into dependencies of
+      DatadogNet and force that generation on every consumer, which is precisely the mistake the
+      DatadogNet.Android README describes making with Compose: holding one package back broke every
+      MAUI consumer of the rest. A consuming app that wants the warning gone can pin them itself.
+
+      NU5104 is the prerelease-dependency warning, which fires for the -beta packages a pull
+      request builds against.
+    -->
+    <NoWarn>$(NoWarn);NU5104;NU1608</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <SupportedOSPlatformVersion>$(DatadogSupportedIosVersion)</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <SupportedOSPlatformVersion>$(DatadogSupportedAndroidVersion)</SupportedOSPlatformVersion>
+
+    <!--
+      These are code-only libraries with no Android resources, so the generated Resource designer
+      has nothing to describe - and generating it is actively harmful here. The designer is emitted
+      into $(RootNamespace), which defaults to the project name: for DatadogNet.CrashReporting that
+      declares a *namespace* DatadogNet.CrashReporting, which collides with the public *type* of the
+      same name and fails the build with
+
+          error CS0101: The namespace 'DatadogNet' already contains a definition for 'CrashReporting'
+
+      pointing at a file that has no second definition in it. Setting RootNamespace instead would
+      make every package export its own DatadogNet.Resource, which is ambiguous for an app that
+      references two of them.
+
+      AndroidUseDesignerAssembly stays at its default of true: the Datadog Android binding packages
+      themselves use the designer assembly, and turning it off here fails with XA1034 for every one
+      of them.
+    -->
+    <AndroidGenerateResourceDesigner>false</AndroidGenerateResourceDesigner>
+  </PropertyGroup>
+
+  <!--
+    One implementation directory per target platform, and exactly one of them compiled into any
+    given assembly. The shared sources declare the public API and every `partial` hook; the
+    directory selected below supplies the bodies.
+
+    The default glob picks up everything under the project, so Platforms/ is removed first and the
+    matching subtree added back. A target framework that matched none of the conditions below would
+    fail to compile with "no defining declaration found for implementing declaration", which is the
+    intended outcome: silently producing an assembly whose API does nothing would be worse.
+  -->
+  <ItemGroup>
+    <Compile Remove="Platforms/**/*.cs" />
+    <None Include="Platforms/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <Compile Include="Platforms/Android/**/*.cs" />
+    <None Remove="Platforms/Android/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <Compile Include="Platforms/iOS/**/*.cs" />
+    <None Remove="Platforms/iOS/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == ''">
+    <Compile Include="Platforms/Unsupported/**/*.cs" />
+    <None Remove="Platforms/Unsupported/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../build/icon.png" Pack="true" PackagePath="" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" PackagePath="" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)../licenses/MIT.txt" Pack="true" PackagePath="licenses" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)../licenses/Apache-2.0.txt" Pack="true" PackagePath="licenses" Visible="false" />
+  </ItemGroup>
+
+</Project>

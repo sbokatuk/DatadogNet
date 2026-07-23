@@ -1,0 +1,122 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Which of the packages' target frameworks to exercise. Overriding TargetFramework directly on
+      the command line breaks restore, so it goes through a property of our own.
+
+      One project with two heads, not two projects: the point of this suite is that the same checks
+      compile and pass on both platforms, and two projects sharing a linked file would make it
+      possible for one of them to drift.
+    -->
+    <DatadogDeviceTargetFramework Condition=" '$(DatadogDeviceTargetFramework)' == '' ">net9.0-ios18.0</DatadogDeviceTargetFramework>
+    <TargetFramework>$(DatadogDeviceTargetFramework)</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <CheckEolWorkloads>false</CheckEolWorkloads>
+    <NoWarn>$(NoWarn);NU1608</NoWarn>
+
+    <ApplicationId>com.sbokatuk.datadognet.devicetests</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <SupportedOSPlatformVersion>12.2</SupportedOSPlatformVersion>
+    <!--
+      The checks report through stdout, which the runner streams back with `simctl launch` in
+      console-pty mode. Quietening the Mono logger keeps that stream to the test output rather than
+      runtime chatter.
+    -->
+    <MtouchExtraArgs>--setenv=MONO_LOG_LEVEL=error</MtouchExtraArgs>
+
+    <!--
+      The interpreter, explicitly. The .NET 9 iOS SDK JITs a Debug simulator build; the .NET 8 one
+      puts the runtime in aot-only mode for the same command line, and then dies on the first
+      assembly it has no AOT image for:
+
+          error: Failed to load AOT module 'DatadogNet.Objc.iOS' while running in aot-only mode
+
+      Setting it for both bands rather than only net8 keeps the two runs comparable - a check that
+      passes under the interpreter on one platform version and under the JIT on another is not
+      testing quite the same thing.
+    -->
+    <UseInterpreter>true</UseInterpreter>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <!-- 23, not the 21 the Datadog .aars declare: androidx.savedstate raises it. See
+         Directory.Build.props. -->
+    <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
+
+    <!--
+      The property, not an @(AndroidManifest) item. The .NET 9 Android SDK is happy with the item
+      form; the .NET 8 one reads $(AndroidManifest), defaults it to the project root, and fails:
+
+          error XA1018: Specified AndroidManifest file does not exist: …/AndroidManifest.xml
+    -->
+    <AndroidManifest>Platforms/Android/AndroidManifest.xml</AndroidManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Platforms/**/*.cs" />
+    <None Include="Platforms/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <Compile Include="Platforms/Android/**/*.cs" />
+    <None Remove="Platforms/Android/**/*.cs" />
+  </ItemGroup>
+
+  <!--
+    A direct reference that only exists to settle a transitive conflict, and one every net8 Android
+    consumer of these packages needs.
+
+    Two packages in the AndroidX graph the Datadog bindings pull in disagree about SavedState:
+    Navigation.Common 2.9.6 wants >= 1.4.0, while SavedState.Ktx 1.3.2 - reached through
+    Activity.Ktx - pins [1.3.2, 1.3.3). The .NET 9 and .NET 10 SDKs resolve the higher version and
+    emit NU1608, which this repository suppresses because the result works. The .NET 8 SDK refuses:
+
+        error NU1107: Version conflict detected for Xamarin.AndroidX.SavedState. Install/reference
+        Xamarin.AndroidX.SavedState 1.4.0 directly to project … to resolve this issue.
+
+    1.4.0 is what the other two bands already land on, so pinning it changes nothing for net9 and
+    net10 and unblocks net8. Applied to every Android head rather than to net8 alone, so all three
+    resolve identically and the checks compare like with like.
+  -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <PackageReference Include="Xamarin.AndroidX.SavedState" Version="1.4.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <Compile Include="Platforms/iOS/**/*.cs" />
+    <None Remove="Platforms/iOS/**/*.cs" />
+    <BundleResource Include="Platforms/iOS/Info.plist" LogicalName="Info.plist" Condition="false" />
+  </ItemGroup>
+
+  <!--
+    The device tests deliberately consume the packed NuGets from ./artifacts rather than
+    ProjectReferences, so they exercise the artifacts that actually get published - including their
+    dependencies on DatadogNet.iOS and DatadogNet.Android, which is the part a ProjectReference
+    would prove nothing about. See NuGet.config for the local feed.
+
+    DatadogNet.Maui is deliberately absent. This app is not a MAUI app: keeping the checks free of
+    the MAUI workload is what lets them prove that the *façade* works rather than that MAUI's
+    plumbing does, and it keeps the emulator run from spending minutes on a MAUI build. The sample
+    app is what exercises DatadogNet.Maui.
+  -->
+  <PropertyGroup>
+    <DatadogPackageVersion Condition=" '$(DatadogPackageVersion)' == '' ">$(VersionPrefix)</DatadogPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DatadogNet" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.CrashReporting" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.WebView" Version="$(DatadogPackageVersion)" />
+  </ItemGroup>
+
+</Project>

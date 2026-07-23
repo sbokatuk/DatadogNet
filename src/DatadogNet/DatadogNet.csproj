@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../Datadog.Facade.props" />
+
+  <PropertyGroup>
+    <PackageId>DatadogNet</PackageId>
+    <Title>Datadog for .NET MAUI</Title>
+    <Description>
+      One cross-platform Datadog API for .NET MAUI: RUM, Logs, Trace and Session Replay on Android
+      and iOS from shared code, over the native dd-sdk-android and dd-sdk-ios bindings. Restores
+      and no-ops on Windows and Mac Catalyst, so a multi-headed app needs no conditionals.
+    </Description>
+    <PackageTags>datadog;maui;rum;logging;tracing;apm;observability;session-replay;android;ios</PackageTags>
+  </PropertyGroup>
+
+  <!--
+    Android. Every module the façade calls into is referenced explicitly rather than left to arrive
+    transitively, so that a change to one of those packages' own dependency graphs cannot silently
+    remove something this assembly compiles against.
+
+    SessionReplayMaterial is here and SessionReplayCompose is not, and that is a MAUI-specific
+    judgement rather than an arbitrary line: MAUI's Android handlers are built on Material
+    Components, so without the Material extension Session Replay renders a MAUI app's own controls
+    as blank boxes. Nothing in MAUI draws Jetpack Compose, so the Compose extension would be dead
+    weight - add DatadogNet.SessionReplayCompose.Android yourself and register it through
+    SessionReplayOptions.ConfigureNative if you host Compose content.
+
+    Ndk (native crash capture) and WebView are deliberately absent - see DatadogNet.CrashReporting
+    and DatadogNet.WebView, which exist so an app that wants neither pays for neither. A signal
+    handler in particular is not something a package called "DatadogNet" should install for you.
+  -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <PackageReference Include="DatadogNet.Core.Android" Version="$(DatadogNetAndroidVersion)" />
+    <PackageReference Include="DatadogNet.Logs.Android" Version="$(DatadogNetAndroidVersion)" />
+    <PackageReference Include="DatadogNet.RUM.Android" Version="$(DatadogNetAndroidVersion)" />
+    <PackageReference Include="DatadogNet.Trace.Android" Version="$(DatadogNetAndroidVersion)" />
+    <PackageReference Include="DatadogNet.OpenTracing.Android" Version="$(DatadogNetAndroidVersion)" />
+    <PackageReference Include="DatadogNet.SessionReplay.Android" Version="$(DatadogNetAndroidVersion)" />
+    <PackageReference Include="DatadogNet.SessionReplayMaterial.Android" Version="$(DatadogNetAndroidVersion)" />
+  </ItemGroup>
+
+  <!--
+    iOS. One reference: DatadogObjc is the framework Datadog ships precisely to re-export the whole
+    SDK to Objective-C, and DatadogNet.Objc.iOS depends on Core, Internal, Logs, RUM, SessionReplay
+    and Trace. There is no way to take less of it, which is also why Session Replay is in this
+    package rather than in one of its own - an iOS app pays for the framework whatever the package
+    layout says.
+  -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <PackageReference Include="DatadogNet.Objc.iOS" Version="$(DatadogNetiOSVersion)" />
+  </ItemGroup>
+
+</Project>
