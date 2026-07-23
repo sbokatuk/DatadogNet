@@ -1,0 +1,136 @@
+<Project>
+
+  <PropertyGroup>
+    <!--
+      Package versions are <dd-sdk-ios version>.<binding revision>, e.g. 2.30.2.1 - the same
+      scheme the two platform binding repositories use, and deliberately the *iOS* line.
+
+      This repository binds nothing itself. It is a cross-platform façade over two independently
+      versioned package sets:
+
+        DatadogNet.iOS      2.30.2.1   -> dd-sdk-ios     2.30.2
+        DatadogNet.Android  2.26.3.1   -> dd-sdk-android 2.26.3
+
+      Those two never move in lock-step: Datadog releases the iOS and Android SDKs on separate
+      cadences and the version numbers have never matched. A façade therefore has to pick one line
+      to name itself after or invent a third numbering nobody can map back to anything. It picks
+      iOS, because that is the line whose version is furthest ahead and so the one a reader is most
+      likely to recognise, and states the Android version everywhere it states its own.
+
+      The fourth component belongs to this repository and advances when the façade changes while
+      both underlying package sets stay put.
+
+      THIS IS THE 2.x LINE of both native SDKs. It is not simply an older 3.x: 2.x tracing is
+      OpenTracing-shaped on both platforms (AndroidTracer implements io.opentracing.Tracer,
+      DDTracer implements OTTracer), which 3.0 removed on both; dd-sdk-ios 3.0 additionally
+      deleted the DatadogObjc façade this repository's iOS head is written against. See
+      docs/native-surface.md.
+    -->
+    <DatadogNativeVersion>2.30.2</DatadogNativeVersion>
+    <DatadogBindingRevision>1</DatadogBindingRevision>
+    <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
+
+    <!--
+      The two platform binding package sets this façade is compiled against. Pinned exactly rather
+      than as a floating range: the façade calls into the hand-written convenience layers in both
+      repositories (RumMonitorExtensions, DDRUMMonitor.Ergonomics and friends), which are not
+      covered by any compatibility promise, and a floating reference would turn a change there into
+      a build break in somebody's app rather than here.
+    -->
+    <DatadogNetiOSVersion>2.30.2.1</DatadogNetiOSVersion>
+    <DatadogNetAndroidVersion>2.26.3.1</DatadogNetAndroidVersion>
+    <DatadogAndroidNativeVersion>2.26.3</DatadogAndroidNativeVersion>
+  </PropertyGroup>
+
+  <!--
+    Target frameworks, in two bands.
+
+    Each .NET SDK's android/ios workloads ship reference packs for the current target framework and
+    the previous one - the .NET 9 band builds net8 + net9, the .NET 10 band builds net9 + net10 -
+    so no single SDK builds all three. BuildNugets.sh packs twice and merge-packages.py grafts the
+    net10 assets into the net9 packages, exactly as both platform repositories do.
+
+    net8 is deliberately absent, and this is the one place the façade's target set is narrower than
+    the packages it wraps.
+
+      - MAUI 8 is out of support.
+      - DatadogNet.Android's own README records that MAUI 9 cannot build against the AndroidX
+        generation those packages depend on: a plain MAUI 9 app with nothing but
+        Xamarin.AndroidX.AppCompat 1.7.1.1 added, and no Datadog package anywhere, fails generating
+        Java callable wrappers. That is an SDK defect rather than anything the bindings do, and it
+        makes net8-era MAUI a target nobody could actually ship on.
+      - A net8 asset would still be selected by NuGet for a net8 consumer and then fail at build
+        time with a less obvious error than "no compatible assets".
+
+    A plain .NET Android or .NET iOS app on net8 can still consume DatadogNet.Android /
+    DatadogNet.iOS directly, which is what those packages keeping net8 is for.
+  -->
+  <PropertyGroup>
+    <DatadogSdkBand Condition=" '$(DatadogSdkBand)' == '' ">net9</DatadogSdkBand>
+
+    <DatadogNetVersionMoniker Condition=" '$(DatadogSdkBand)' == 'net9' ">net9.0</DatadogNetVersionMoniker>
+    <DatadogAndroidTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net9.0-android35.0</DatadogAndroidTargetFramework>
+    <DatadogiOSTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net9.0-ios18.0</DatadogiOSTargetFramework>
+
+    <DatadogNetVersionMoniker Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0</DatadogNetVersionMoniker>
+    <DatadogAndroidTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-android36.0</DatadogAndroidTargetFramework>
+    <DatadogiOSTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-ios26.0</DatadogiOSTargetFramework>
+
+    <!--
+      The plain net9.0/net10.0 asset is not padding. A MAUI app routinely also has a Windows or Mac
+      Catalyst head, and NuGet resolves each head independently: without a platform-neutral asset,
+      restoring DatadogNet on net9.0-windows10.0.19041.0 fails with NU1202 and the app has to guard
+      every PackageReference by target platform. With it, the reference is unconditional and the
+      Windows head links an implementation whose every member is a documented no-op. See
+      Platforms/Unsupported.
+    -->
+    <DatadogTargetFrameworks>$(DatadogNetVersionMoniker);$(DatadogAndroidTargetFramework);$(DatadogiOSTargetFramework)</DatadogTargetFrameworks>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      12.2 on iOS because the Datadog frameworks are Swift and use the OS-provided Swift runtime,
+      which is only ABI-stable from 12.2. API 21 on Android, read off the .aar manifests - which is
+      a practical reason to prefer the 2.x line, since dd-sdk-android 3.0 raised the floor to 23.
+    -->
+    <DatadogSupportedIosVersion>12.2</DatadogSupportedIosVersion>
+    <DatadogSupportedAndroidVersion>21</DatadogSupportedAndroidVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <CheckEolWorkloads>false</CheckEolWorkloads>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Authors>s.bokatuk</Authors>
+    <Company>s.bokatuk</Company>
+    <Copyright>Copyright © s.bokatuk</Copyright>
+    <PackageProjectUrl>https://github.com/sbokatuk/DatadogNet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/sbokatuk/DatadogNet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <!--
+      The same expression the two binding repositories declare, and for the same reason: the code
+      here is MIT, and every package it depends on ships native artifacts Datadog publishes under
+      Apache-2.0. NuGet resolves a licence per package, not per graph, so a package whose
+      dependencies carry Apache-2.0 payloads has to say so itself.
+    -->
+    <PackageLicenseExpression>MIT AND Apache-2.0</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition=" '$(GITHUB_ACTIONS)' == 'true' ">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+</Project>

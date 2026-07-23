@@ -1,0 +1,80 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Which of the packages' target frameworks to exercise. Overriding TargetFramework directly on
+      the command line breaks restore, so it goes through a property of our own.
+
+      One project with two heads, not two projects: the point of this suite is that the same checks
+      compile and pass on both platforms, and two projects sharing a linked file would make it
+      possible for one of them to drift.
+    -->
+    <DatadogDeviceTargetFramework Condition=" '$(DatadogDeviceTargetFramework)' == '' ">net9.0-ios18.0</DatadogDeviceTargetFramework>
+    <TargetFramework>$(DatadogDeviceTargetFramework)</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <CheckEolWorkloads>false</CheckEolWorkloads>
+    <NoWarn>$(NoWarn);NU1608</NoWarn>
+
+    <ApplicationId>com.sbokatuk.datadognet.devicetests</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <SupportedOSPlatformVersion>12.2</SupportedOSPlatformVersion>
+    <!--
+      The checks report through stdout, which the runner streams back with `simctl launch` in
+      console-pty mode. Quietening the Mono logger keeps that stream to the test output rather than
+      runtime chatter.
+    -->
+    <MtouchExtraArgs>--setenv=MONO_LOG_LEVEL=error</MtouchExtraArgs>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Platforms/**/*.cs" />
+    <None Include="Platforms/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <Compile Include="Platforms/Android/**/*.cs" />
+    <None Remove="Platforms/Android/**/*.cs" />
+    <AndroidManifest Include="Platforms/Android/AndroidManifest.xml" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <Compile Include="Platforms/iOS/**/*.cs" />
+    <None Remove="Platforms/iOS/**/*.cs" />
+    <BundleResource Include="Platforms/iOS/Info.plist" LogicalName="Info.plist" Condition="false" />
+  </ItemGroup>
+
+  <!--
+    The device tests deliberately consume the packed NuGets from ./artifacts rather than
+    ProjectReferences, so they exercise the artifacts that actually get published - including their
+    dependencies on DatadogNet.iOS and DatadogNet.Android, which is the part a ProjectReference
+    would prove nothing about. See NuGet.config for the local feed.
+
+    DatadogNet.Maui is deliberately absent. This app is not a MAUI app: keeping the checks free of
+    the MAUI workload is what lets them prove that the *façade* works rather than that MAUI's
+    plumbing does, and it keeps the emulator run from spending minutes on a MAUI build. The sample
+    app is what exercises DatadogNet.Maui.
+  -->
+  <PropertyGroup>
+    <DatadogPackageVersion Condition=" '$(DatadogPackageVersion)' == '' ">$(VersionPrefix)</DatadogPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DatadogNet" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.CrashReporting" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.WebView" Version="$(DatadogPackageVersion)" />
+  </ItemGroup>
+
+</Project>

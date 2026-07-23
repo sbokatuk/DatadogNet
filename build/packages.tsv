@@ -1,0 +1,25 @@
+# The package set, and the single source of truth for it.
+#
+# BuildNugets.sh packs in this order, the release and pull-request workflows generate their package
+# tables from it, the package tests read it, and the device-test runner scripts clear the local
+# NuGet cache for every id listed here. Adding a package means adding a row here and a project under
+# src/ - nothing else keeps a second copy of the list.
+#
+# Rows are in dependency order: a package's deps must already have appeared above it.
+#
+# Columns
+#   id      the NuGet package id, which is also the directory under src/ and the .csproj name
+#   heads   which target-framework families the package ships:
+#             all     - neutral (net9.0/net10.0) + android + ios
+#             mobile  - android + ios only
+#   deps    other ids in this repository it depends on, comma separated, or -
+#
+# DatadogNet.Maui is 'mobile' because Microsoft.Maui.Controls is a workload metapackage with no
+# platform-neutral assets - there is nothing to compile a net9.0 no-op MAUI shim against, and
+# net9.0-windows cannot be built on this repository's runners. See the comment in its .csproj.
+#
+# id	heads	deps
+DatadogNet	all	-
+DatadogNet.CrashReporting	all	DatadogNet
+DatadogNet.WebView	all	DatadogNet
+DatadogNet.Maui	mobile	DatadogNet

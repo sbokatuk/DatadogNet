@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../Datadog.Facade.props" />
+
+  <PropertyGroup>
+    <PackageId>DatadogNet.WebView</PackageId>
+    <Title>Datadog web view tracking for .NET MAUI</Title>
+    <Description>
+      Bridges RUM events and logs out of an Android WebView or a WKWebView into the surrounding
+      native Datadog session. For hybrid apps; separate from DatadogNet so an app without a web view
+      does not carry it.
+    </Description>
+    <PackageTags>datadog;maui;webview;rum;hybrid;android;ios</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet/DatadogNet.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <PackageReference Include="DatadogNet.WebView.Android" Version="$(DatadogNetAndroidVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <PackageReference Include="DatadogNet.WebViewTracking.iOS" Version="$(DatadogNetiOSVersion)" />
+  </ItemGroup>
+
+</Project>

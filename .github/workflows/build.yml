@@ -1,0 +1,290 @@
+name: build
+
+# Reusable pipeline: packs every package at a given version, validates the packed packages, runs the
+# device checks on both an iOS simulator and an Android emulator, builds the MAUI sample against the
+# packed packages, and uploads the packages as an artifact. Callers (pr.yml, release.yml) decide the
+# version and what to do with the result.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: NuGet version to stamp on every package.
+        required: true
+        type: string
+      e2e-ios-target-framework:
+        description: >
+          Which of the packages' target frameworks the simulator checks run against. Defaults to
+          net10, whose assets are produced by the merge step in BuildNugets.sh and so are the ones
+          worth proving at runtime.
+        required: false
+        default: net10.0-ios26.0
+        type: string
+      e2e-android-target-framework:
+        description: Same, for the emulator checks.
+        required: false
+        default: net10.0-android36.0
+        type: string
+      e2e-api-level:
+        description: Android API level the emulator boots.
+        required: false
+        default: 35
+        type: number
+      build-sample:
+        description: >
+          Whether to compile the MAUI sample against the packed packages. Defaults to true, because
+          it is a verification step and a new caller should get it. Releases turn it off: by then
+          the same commit has already been through it on the pull request, and it would otherwise
+          put a MAUI workload install between the packages being built and being published.
+        required: false
+        default: true
+        type: boolean
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  pack:
+    name: build and pack
+    timeout-minutes: 60
+    # macOS for the whole build, unlike DatadogNet.Android which packs on Linux: every package here
+    # has an iOS head, and there is no cross-platform path for the Apple toolchain. A package is
+    # only complete once both heads are in it.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: ./.github/actions/select-xcode
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          # 9.0.x packs the net9 band (global.json pins it) and 10.0.x packs net10.
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Install workloads for every SDK band
+        run: |
+          # Each band supplies different reference packs: net9.0-android35.0 and net9.0-ios18.0 come
+          # from the .NET 9 band, net10.0-android36.0 and net10.0-ios26.0 from the .NET 10 band. The
+          # SDK is chosen by the global.json in the working directory, so each band is installed
+          # from a scratch directory pinned to that SDK.
+          #
+          # maui is installed in both bands rather than only where the sample is built:
+          # DatadogNet.Maui is a package, and it is packed in both passes.
+          for major in 9 10; do
+            dir="${RUNNER_TEMP}/sdk${major}"
+            mkdir -p "${dir}"
+            sdk=$(dotnet --list-sdks | grep "^${major}\." | tail -1 | cut -d' ' -f1)
+            echo "installing workloads for SDK ${sdk}"
+            ( cd "${dir}" \
+              && dotnet new globaljson --sdk-version "${sdk}" --force \
+              && dotnet workload install android ios maui-android maui-ios )
+          done
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 platforms;android-36'
+
+      - name: Pack all packages
+        run: ./build/BuildNugets.sh "${{ inputs.version }}"
+
+      - name: Validate packages
+        env:
+          DATADOG_PACKAGE_VERSION: ${{ inputs.version }}
+        run: dotnet test tests/DatadogNet.PackageTests --logger 'trx;LogFileName=package-tests.trx'
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-test-results
+          path: '**/*.trx'
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-ios:
+    name: simulator checks
+    timeout-minutes: 45
+    needs: pack
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: ./.github/actions/select-xcode
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Install the iOS workload
+        run: |
+          # The device app is built for the target framework under test, so install the workload for
+          # the band that owns it. global.json pins .NET 9; the app may need .NET 10.
+          mkdir -p "${RUNNER_TEMP}/sdk10"
+          ( cd "${RUNNER_TEMP}/sdk10" \
+            && dotnet new globaljson --sdk-version "$(dotnet --list-sdks | grep '^10\.' | tail -1 | cut -d' ' -f1)" --force \
+            && dotnet workload install ios )
+          dotnet workload install ios
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts
+
+      - name: Run checks on simulator
+        run: ./.github/scripts/run-simulator-tests.sh "${{ inputs.version }}" "${{ inputs.e2e-ios-target-framework }}"
+
+      - name: Upload simulator logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-test-logs
+          path: simulator-tests.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-android:
+    name: emulator checks
+    timeout-minutes: 60
+    needs: pack
+    # Linux, unlike the pack job: the emulator needs KVM, which the macOS runners do not have, and
+    # the Android head of the device app needs no Apple toolchain to build.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Install the Android workload
+        run: |
+          mkdir -p "${RUNNER_TEMP}/sdk10"
+          ( cd "${RUNNER_TEMP}/sdk10" \
+            && dotnet new globaljson --sdk-version "$(dotnet --list-sdks | grep '^10\.' | tail -1 | cut -d' ' -f1)" --force \
+            && dotnet workload install android )
+          dotnet workload install android
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 platforms;android-36'
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts
+
+      - name: Enable KVM
+        # The x86_64 emulator is unusably slow without hardware acceleration, and the runner image
+        # does not grant access to /dev/kvm by default.
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run checks on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ inputs.e2e-api-level }}
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: ./.github/scripts/run-emulator-tests.sh "${{ inputs.version }}" "${{ inputs.e2e-android-target-framework }}"
+
+      - name: Upload emulator logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-test-logs
+          path: emulator-tests.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  sample:
+    name: build sample app
+    timeout-minutes: 45
+    needs: pack
+    if: ${{ inputs.build-sample }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: ./.github/actions/select-xcode
+
+      # The sample targets the net10 band. MAUI 9 cannot build against the AndroidX generation the
+      # Datadog Android bindings depend on - see the target-framework block in Directory.Build.props
+      # and DatadogNet.Android's own README.
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install the MAUI workload for the .NET 10 band
+        run: |
+          # Workloads are installed per SDK band, and the SDK is resolved from the working
+          # directory - so this has to run from the same scratch global.json the build uses. At the
+          # repository root global.json pins .NET 9, so installing there puts maui on a band the
+          # build never sees, and the build then fails with NETSDK1147 telling you to install a
+          # workload you just installed.
+          dir="${RUNNER_TEMP}/sample-sdk"
+          mkdir -p "${dir}"
+          ( cd "${dir}" \
+            && dotnet new globaljson \
+                 --sdk-version "$(dotnet --list-sdks | grep '^10\.' | tail -1 | cut -d' ' -f1)" --force \
+            && dotnet workload install maui-android maui-ios )
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36'
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts
+
+      # The sample consumes the packed packages exactly as a user would, so it is the only thing
+      # that checks the API is still usable the way the README documents - including DatadogNet.Maui,
+      # which the device checks deliberately do not reference.
+      - name: Build the sample against the packed packages
+        run: |
+          ( cd "${RUNNER_TEMP}/sample-sdk" \
+            && for tfm in net10.0-android36.0 net10.0-ios26.0; do
+                 echo "==> ${tfm}"
+                 dotnet build "${GITHUB_WORKSPACE}/samples/DatadogNet.Maui.Sample/DatadogNet.Maui.Sample.csproj" \
+                   --configuration Debug \
+                   --framework "${tfm}" \
+                   -p:DatadogPackageVersion="${{ inputs.version }}" \
+                   || exit 1
+               done )

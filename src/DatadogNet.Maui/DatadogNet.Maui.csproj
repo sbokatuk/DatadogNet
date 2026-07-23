@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../Datadog.Facade.props" />
+
+  <PropertyGroup>
+    <!--
+      Android and iOS only, with no platform-neutral asset - which is the one place this package
+      differs from DatadogNet, and it is not a choice.
+
+      Microsoft.Maui.Controls is a metapackage with no lib/ assets: the reference assemblies come
+      from the installed MAUI workload, selected by target platform. There is no net9.0 flavour of
+      MAUI to compile a neutral no-op against, and net9.0-windows can only be built on Windows,
+      which this repository's CI is not.
+
+      So a MAUI app with a Windows or Mac Catalyst head guards this one reference by platform,
+      exactly as the DatadogNet.iOS and DatadogNet.Android READMEs describe for the bindings
+      themselves. DatadogNet - where the API a view-model actually calls lives - still needs no
+      guard, so the conditional stays in the .csproj rather than spreading into the code.
+    -->
+    <TargetFrameworks>$(DatadogAndroidTargetFramework);$(DatadogiOSTargetFramework)</TargetFrameworks>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+
+    <PackageId>DatadogNet.Maui</PackageId>
+    <Title>Datadog .NET MAUI integration</Title>
+    <Description>
+      Wires Datadog into a .NET MAUI app: one UseDatadog call on MauiAppBuilder, automatic RUM views
+      from page navigation, an ILogger provider, unhandled-exception reporting and HttpClient
+      instrumentation.
+    </Description>
+    <PackageTags>datadog;maui;rum;logging;tracing;ilogger;observability;android;ios</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet/DatadogNet.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Http is what supplies IHttpClientBuilder, which AddDatadogTracking extends. It is not part of
+      the MAUI workload's implicit reference set.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

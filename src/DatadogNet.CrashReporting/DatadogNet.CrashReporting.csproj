@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../Datadog.Facade.props" />
+
+  <PropertyGroup>
+    <PackageId>DatadogNet.CrashReporting</PackageId>
+    <Title>Datadog crash reporting for .NET MAUI</Title>
+    <Description>
+      Crash reporting for DatadogNet: PLCrashReporter on iOS, and native (NDK) crash capture on
+      Android. Separate from DatadogNet because it installs a signal handler.
+    </Description>
+    <PackageTags>datadog;maui;crash;crash-reporting;plcrashreporter;ndk;android;ios</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet/DatadogNet.csproj" />
+  </ItemGroup>
+
+  <!--
+    Android: only the NDK module. JVM-level crash reporting - which is where an unhandled .NET
+    exception in a MAUI app ends up - is part of dd-sdk-android-core and is already on, through
+    DatadogConfiguration.CrashReportsEnabled. This package adds native crashes on top.
+  -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <PackageReference Include="DatadogNet.Ndk.Android" Version="$(DatadogNetAndroidVersion)" />
+  </ItemGroup>
+
+  <!--
+    iOS: the whole of crash reporting. dd-sdk-ios has no built-in equivalent of Android's
+    setCrashReportsEnabled - DatadogCrashReporting is a framework of its own, carrying
+    PLCrashReporter - so on iOS an app without this package reports no crashes at all.
+  -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <PackageReference Include="DatadogNet.CrashReporting.iOS" Version="$(DatadogNetiOSVersion)" />
+  </ItemGroup>
+
+</Project>
