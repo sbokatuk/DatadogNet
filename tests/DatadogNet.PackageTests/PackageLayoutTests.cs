@@ -131,7 +131,7 @@ public class PackageLayoutTests
     }
 
     [Fact]
-    public void iOS_assets_depend_on_the_Objc_facade()
+    public void iOS_assets_depend_on_every_Datadog_iOS_binding_they_call()
     {
         using var package = Packages.OpenPackage("DatadogNet");
 
@@ -139,7 +139,17 @@ public class PackageLayoutTests
 
         foreach (var tfm in Packages.ExpectedTargetFrameworks("DatadogNet").Where(t => t.Contains("ios")))
         {
-            Assert.Contains("DatadogNet.Objc.iOS", groups[tfm].Select(d => d.Id));
+            var declared = groups[tfm].Select(d => d.Id).ToHashSet();
+
+            foreach (var binding in Packages.IosBindingDependencies)
+            {
+                Assert.True(declared.Contains(binding), $"DatadogNet ({tfm}) does not depend on {binding}.");
+            }
+
+            // The 2.x façade took DatadogObjc, which re-exported the whole SDK. In 3.x that package
+            // is an empty compatibility shim for apps migrating a PackageReference, and depending on
+            // it here would work while meaning something quite different.
+            Assert.DoesNotContain("DatadogNet.Objc.iOS", declared);
         }
     }
 

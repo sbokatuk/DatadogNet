@@ -6,7 +6,6 @@ using Com.Datadog.Android.Rum.Tracking;
 using Com.Datadog.Android.Sessionreplay;
 using Com.Datadog.Android.Sessionreplay.Material;
 using Com.Datadog.Android.Trace;
-using IO.Opentracing.Util;
 
 // Every one of these collides with something in this file's own scope - the type being extended is
 // called Datadog, its members are called Logs, Trace and SessionReplay, and the SDK's types have
@@ -192,34 +191,38 @@ public static partial class Datadog
 
         NativeTrace.Enable(builder.Build());
 
-        // 2.x tracing is OpenTracing: AndroidTracer implements io.opentracing.Tracer, and
-        // GlobalTracer is where the rest of the process reaches it from. The sample rate, service
-        // and header types live on the tracer rather than on the feature configuration, which is
-        // the reverse of iOS - hence the split between what went on the builder above and what goes
-        // on this one.
-        var tracer = new AndroidTracer.Builder()
-            .SetSampleRate(options.SampleRate)
+        // 3.x tracing is Datadog's own: AndroidTracer and the OpenTracing dependency are gone, and
+        // DatadogTracing.NewTracerBuilder replaces them. The sample rate, service and header types
+        // still live on the tracer rather than on the feature configuration - the reverse of iOS -
+        // hence the split between what went on the builder above and what goes on this one.
+        var core = NativeDatadog.Instance
+            ?? throw new InvalidOperationException(
+                "The Datadog SDK reported no instance immediately after initialising it, so no "
+                + "tracer can be built. This should not happen.");
+
+        var tracer = DatadogTracing.NewTracerBuilder(core)!
+            .WithSampleRate(options.SampleRate)
             .SetBundleWithRumEnabled(options.BundleWithRumEnabled)
-            .SetTracingHeaderTypes(
+            .WithTracingHeadersTypes(
                 new HashSet<Com.Datadog.Android.Trace.TracingHeaderType>(
                     options.HeaderTypes.Select(ToNativeHeaderType)));
 
         if ((options.Service ?? service) is { Length: > 0 } traceService)
         {
-            tracer.SetService(traceService);
+            tracer.WithServiceName(traceService);
         }
 
         if (options.GlobalTags is { Count: > 0 } tags)
         {
             foreach (var tag in tags)
             {
-                tracer.AddTag(tag.Key, tag.Value);
+                tracer.WithTag(tag.Key, tag.Value);
             }
         }
 
-        // RegisterIfAbsent rather than Register: registering twice throws, and a MAUI app on
+        // RegisterIfAbsent rather than Register: registering twice is refused, and a MAUI app on
         // Android can have its entry point run again after the process is recreated.
-        GlobalTracer.RegisterIfAbsent(tracer.Build()!);
+        GlobalDatadogTracer.RegisterIfAbsent(tracer.Build()!);
     }
 
     private static void EnableSessionReplay(SessionReplayOptions options)
@@ -307,6 +310,7 @@ public static partial class Datadog
         DatadogSite.Ap1 => Com.Datadog.Android.DatadogSite.Ap1!,
         DatadogSite.Ap2 => Com.Datadog.Android.DatadogSite.Ap2!,
         DatadogSite.Us1Fed => Com.Datadog.Android.DatadogSite.Us1Fed!,
+        DatadogSite.Us2Fed => Com.Datadog.Android.DatadogSite.Us2Fed!,
         _ => throw new ArgumentOutOfRangeException(nameof(site), site, "Unknown Datadog site."),
     };
 

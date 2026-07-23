@@ -2,14 +2,14 @@
 
   <PropertyGroup>
     <!--
-      Package versions are <dd-sdk-ios version>.<binding revision>, e.g. 2.30.2.1 - the same
+      Package versions are <dd-sdk-ios version>.<binding revision>, e.g. 3.14.0.1 - the same
       scheme the two platform binding repositories use, and deliberately the *iOS* line.
 
       This repository binds nothing itself. It is a cross-platform façade over two independently
       versioned package sets:
 
-        DatadogNet.iOS      2.30.2.2   -> dd-sdk-ios     2.30.2
-        DatadogNet.Android  2.26.3.1   -> dd-sdk-android 2.26.3
+        DatadogNet.iOS      3.14.0.1   -> dd-sdk-ios     3.14.0
+        DatadogNet.Android  3.12.1.1   -> dd-sdk-android 3.12.1
 
       Those two never move in lock-step: Datadog releases the iOS and Android SDKs on separate
       cadences and the version numbers have never matched. A façade therefore has to pick one line
@@ -20,13 +20,13 @@
       The fourth component belongs to this repository and advances when the façade changes while
       both underlying package sets stay put.
 
-      THIS IS THE 2.x LINE of both native SDKs. It is not simply an older 3.x: 2.x tracing is
-      OpenTracing-shaped on both platforms (AndroidTracer implements io.opentracing.Tracer,
-      DDTracer implements OTTracer), which 3.0 removed on both; dd-sdk-ios 3.0 additionally
-      deleted the DatadogObjc façade this repository's iOS head is written against. See
-      docs/native-surface.md.
+      THIS IS THE 3.x LINE of both native SDKs. Moving here from 2.x rewrote both platform
+      implementations and left the public API alone - dd-sdk-android replaced OpenTracing with
+      DatadogTracing/DatadogSpan, and dd-sdk-ios redistributed the DD* types out of DatadogObjc
+      into one namespace per module. See docs/upgrade-to-3x.md for the full diff and
+      docs/native-surface.md for what is covered.
     -->
-    <DatadogNativeVersion>2.30.2</DatadogNativeVersion>
+    <DatadogNativeVersion>3.14.0</DatadogNativeVersion>
     <DatadogBindingRevision>1</DatadogBindingRevision>
     <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
 
@@ -37,15 +37,15 @@
       covered by any compatibility promise, and a floating reference would turn a change there into
       a build break in somebody's app rather than here.
 
-      The iOS pin is 2.30.2.2 rather than .1 because .1 cannot trace at all: DDTracer.Shared throws
-      InvalidCastException on first use, and it is the only way to reach a tracer. The Android pin
-      stays at 2.26.3.1 - the improvements made there alongside it are conveniences this repository
-      can do without, so requiring a rebuild for them would be gratuitous. See
-      docs/upstream-changes.md.
+      Both are the published 3.x releases, with no revision of our own required: the protocol-binding
+      defect that forced DatadogNet.iOS 2.30.2.2 does not exist in the 3.x binding, which already
+      declares IOTTracer/IOTSpan/IOTSpanContext as interfaces. The convenience additions made to the
+      2.x branches are not on these; where the façade still needs one it carries its own shim, each
+      marked with the upstream member that would replace it. See docs/upgrade-to-3x.md.
     -->
-    <DatadogNetiOSVersion>2.30.2.2</DatadogNetiOSVersion>
-    <DatadogNetAndroidVersion>2.26.3.1</DatadogNetAndroidVersion>
-    <DatadogAndroidNativeVersion>2.26.3</DatadogAndroidNativeVersion>
+    <DatadogNetiOSVersion>3.14.0.1</DatadogNetiOSVersion>
+    <DatadogNetAndroidVersion>3.12.1.1</DatadogNetAndroidVersion>
+    <DatadogAndroidNativeVersion>3.12.1</DatadogAndroidNativeVersion>
   </PropertyGroup>
 
   <!--

@@ -3,8 +3,8 @@
 [![NuGet](https://img.shields.io/nuget/v/DatadogNet?label=nuget)](https://www.nuget.org/packages/DatadogNet)
 [![release](https://github.com/sbokatuk/DatadogNet/actions/workflows/release.yml/badge.svg)](https://github.com/sbokatuk/DatadogNet/actions/workflows/release.yml)
 [![Targets: net9.0 | net10.0](https://img.shields.io/badge/targets-net9.0%20%7C%20net10.0-512BD4)](#packages)
-[![dd-sdk-ios 2.30.2](https://img.shields.io/badge/dd--sdk--ios-2.30.2-632CA6)](https://github.com/DataDog/dd-sdk-ios/releases/tag/2.30.2)
-[![dd-sdk-android 2.26.3](https://img.shields.io/badge/dd--sdk--android-2.26.3-632CA6)](https://github.com/DataDog/dd-sdk-android/releases/tag/2.26.3)
+[![dd-sdk-ios 3.14.0](https://img.shields.io/badge/dd--sdk--ios-3.14.0-632CA6)](https://github.com/DataDog/dd-sdk-ios/releases/tag/3.14.0)
+[![dd-sdk-android 3.12.1](https://img.shields.io/badge/dd--sdk--android-3.12.1-632CA6)](https://github.com/DataDog/dd-sdk-android/releases/tag/3.12.1)
 [![Licence: MIT AND Apache-2.0](https://img.shields.io/badge/licence-MIT%20AND%20Apache--2.0-green)](#licence)
 
 **One Datadog API for .NET MAUI.** Real User Monitoring, Logs, Trace, Session Replay and crash
@@ -60,9 +60,9 @@ exceptions are reported — on both platforms.
 
 ## Packages
 
-Four packages. The version is `<dd-sdk-ios version>.<binding revision>` — `2.30.2.1` is dd-sdk-ios
-**2.30.2**, binding revision **1**, and the Android side of the same release is dd-sdk-android
-**2.26.3**.
+Four packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.14.0.1` is dd-sdk-ios
+**3.14.0**, binding revision **1**, and the Android side of the same release is dd-sdk-android
+**3.12.1**.
 
 > **Why one version names one SDK.** Datadog releases the iOS and Android SDKs on separate cadences
 > and their version numbers have never matched. A façade over both has to pick one line to name
@@ -79,8 +79,8 @@ Four packages. The version is `<dd-sdk-ios version>.<binding revision>` — `2.3
 Most apps need one or two lines:
 
 ```xml
-<PackageReference Include="DatadogNet.Maui" Version="2.30.2.1" />
-<PackageReference Include="DatadogNet.CrashReporting" Version="2.30.2.1" />
+<PackageReference Include="DatadogNet.Maui" Version="3.14.0.1" />
+<PackageReference Include="DatadogNet.CrashReporting" Version="3.14.0.1" />
 ```
 
 **Target frameworks.** `DatadogNet`, `DatadogNet.CrashReporting` and `DatadogNet.WebView` ship
@@ -101,7 +101,7 @@ A multi-headed app guards that one reference:
 
 ```xml
 <ItemGroup Condition="'$([MSBuild]::GetTargetPlatformIdentifier($(TargetFramework)))' == 'android' or '$([MSBuild]::GetTargetPlatformIdentifier($(TargetFramework)))' == 'ios'">
-  <PackageReference Include="DatadogNet.Maui" Version="2.30.2.1" />
+  <PackageReference Include="DatadogNet.Maui" Version="3.14.0.1" />
 </ItemGroup>
 ```
 
@@ -156,7 +156,7 @@ constraint: the .NET 9 band builds `net8.0-ios18.0` outright.
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DatadogNet.Maui" Version="2.30.2.1" />
+  <PackageReference Include="DatadogNet.Maui" Version="3.14.0.1" />
 </ItemGroup>
 ```
 
@@ -183,7 +183,7 @@ builder.UseDatadog(new DatadogConfiguration
     ClientToken     = "<CLIENT_TOKEN>",
     Env             = "production",
     Service         = "my-app",
-    Site            = DatadogSite.Us1,       // Us1, Us3, Us5, Eu1, Ap1, Ap2, Us1Fed
+    Site            = DatadogSite.Us1,       // Us1, Us3, Us5, Eu1, Ap1, Ap2, Us1Fed, Us2Fed
     TrackingConsent = TrackingConsent.Granted,
 
     Rum           = new RumOptions { ApplicationId = "<RUM_APPLICATION_ID>" },
@@ -380,7 +380,7 @@ Rum = new RumOptions
             .TrackNonFatalAnrs(true)
             .CollectAccessibility(true);
 #elif IOS
-        ((DatadogObjc.DDRUMConfiguration)native).TrackWatchdogTerminations = true;
+        ((DatadogRUM.DDRUMConfiguration)native).TrackWatchdogTerminations = true;
 #endif
     },
 },
@@ -406,7 +406,7 @@ platform.
 The façade hides the API differences. It does not pretend the platforms are identical, and these are
 the places where they are not.
 
-| | Android (dd-sdk-android 2.26.3) | iOS (dd-sdk-ios 2.30.2) |
+| | Android (dd-sdk-android 3.12.1) | iOS (dd-sdk-ios 3.14.0) |
 | --- | --- | --- |
 | **Crash reporting** | JVM crashes are built in and on by default (`CrashReportsEnabled`), which covers an unhandled .NET exception. `DatadogNet.CrashReporting` adds native (NDK) crashes. | Nothing is built in. Without `DatadogNet.CrashReporting` an iOS app reports no crashes at all. |
 | **`ImagePrivacy.MaskContentImages`** | Masks images larger than roughly 100×100 dp. | Masks images not bundled with the app. |
@@ -418,28 +418,38 @@ the places where they are not.
 
 Reachable through `ConfigureNative` in every case.
 
-Two things that look like they should differ and do not: tracing is OpenTracing-shaped on **both**
-platforms in the 2.x line — `AndroidTracer` implements `io.opentracing.Tracer` and `DDTracer`
-implements `OTTracer` — which is why `IDatadogSpan` can be one interface rather than two shapes glued
-together. And the three Session Replay privacy levels are the same three, with the same names, in the
-same order, apart from the middle image level above.
+**Tracing is where the two SDKs have diverged most.** dd-sdk-android 3.0 dropped OpenTracing for its
+own `DatadogTracing`/`DatadogSpan`; dd-sdk-ios kept OpenTracing in its Objective-C layer. `IDatadogSpan`
+is one interface over both anyway — the operations line up, only the type names do not — and the
+differences it absorbs are real:
 
-> **This is the 2.x line of both SDKs, and that is not merely "older".** dd-sdk 3.0 removed
-> OpenTracing on both platforms, and dd-sdk-ios 3.0 deleted the `DatadogObjc` façade this repository's
-> iOS head is written against and replaced PLCrashReporter with KSCrash. Moving to 3.x is a rewrite
-> of both platform layers, not a version bump.
+- **Errors.** `DatadogSpan` has `SetError`, `SetErrorMessage` and `LogErrorMessage`; `OTSpan` has
+  `SetErrorWithKind`.
+- **Ids.** Android gives a typed 128-bit `DatadogTraceId` and a `long` span id. iOS gives neither —
+  they are parsed back out of an injected Datadog header, so the two platforms render the same trace
+  as a hex string and a decimal string respectively.
+- **Injection.** One Android call writes every configured header format; iOS needs one writer object
+  per format.
+
+The three Session Replay privacy levels are still the same three, with the same names, in the same
+order, apart from the middle image level above.
+
+> **This is the 3.x line of both SDKs.** Moving here from 2.x rewrote both platform implementations
+> and left the public API alone — dd-sdk-android replaced OpenTracing with
+> `DatadogTracing`/`DatadogSpan`, and dd-sdk-ios dissolved the `DatadogObjc` framework, redistributing
+> the `DD*` types into one namespace per module and swapping PLCrashReporter for KSCrash. An app
+> moving from the `2.30.2.1` façade changes a version number.
 >
-> The usual argument for staying on 2.x — that it keeps Android API 21 as its floor, where 3.0
-> raised it to 23 — does not actually hold: the AndroidX generation 2.x's `.aar`s depend on forces
-> 23 anyway. See [Packages](#packages). The other reasons still do.
+> [`docs/upgrade-to-3x.md`](docs/upgrade-to-3x.md) is the full analysis: what moved, what the façade
+> gained, and what it deliberately still does not expose.
 
 ---
 
 ## How this repository works
 
 ```
-nuget.org: DatadogNet.iOS 2.30.2.2        nuget.org: DatadogNet.Android 2.26.3.1
-        │  (dd-sdk-ios 2.30.2)                    │  (dd-sdk-android 2.26.3)
+nuget.org: DatadogNet.iOS 3.14.0.1        nuget.org: DatadogNet.Android 3.12.1.1
+        │  (dd-sdk-ios 3.14.0)                    │  (dd-sdk-android 3.12.1)
         └──────────────┬──────────────────────────┘
                        ▼
         src/DatadogNet/Platforms/{iOS,Android,Unsupported}/
@@ -457,10 +467,12 @@ into the hand-written convenience APIs in both repositories — `RumMonitorExten
 `DDRUMMonitor.Ergonomics` and friends — which no compatibility promise covers, and a floating
 reference would turn a change there into a build break in somebody's app rather than here.
 
-Building this façade also turned up a set of gaps in those two repositories, including one that made
-iOS tracing unusable from C# outright. They were fixed there rather than worked around here —
-[`docs/upstream-changes.md`](docs/upstream-changes.md) is the list and the reasoning. It is why the
-iOS pin is `2.30.2.2`.
+Building the 2.x façade turned up a set of gaps in those two repositories, including one that made
+iOS tracing unusable from C# outright — [`docs/upstream-changes.md`](docs/upstream-changes.md) is
+that list. The 3.x bindings already declare the OpenTracing protocols correctly, so no revision of
+our own is needed here; the remaining conveniences are carried as shims in
+`Platforms/*/NativeAttributes.cs` and the tracer adapters, each marked with the upstream member that
+would replace it.
 
 **Why the two-pass build.** Each .NET SDK's android/ios workloads ship reference packs for the
 current target framework and the previous one — the .NET 9 band builds net8 + net9, the .NET 10 band
@@ -501,19 +513,14 @@ the .NET 10 band builds net10.
 dotnet test tests/DatadogNet.PackageTests
 ```
 
-> **Until `DatadogNet.iOS 2.30.2.2` is on nuget.org**, restore needs it in the local `artifacts/`
-> feed: build it from the `maui-facade-improvements` branch of that repository and copy the packages
-> across. It is pinned because 2.30.2.1 cannot trace at all — see
-> [`docs/upstream-changes.md`](docs/upstream-changes.md).
-
 Run the device checks against the packed packages:
 
 ```bash
-./.github/scripts/run-simulator-tests.sh 2.30.2.1 net8.0-ios18.0
+./.github/scripts/run-simulator-tests.sh 3.14.0.1 net8.0-ios18.0
 ```
 
 ```bash
-./.github/scripts/run-emulator-tests.sh 2.30.2.1 net8.0-android34.0
+./.github/scripts/run-emulator-tests.sh 3.14.0.1 net8.0-android34.0
 ```
 
 Any of the six platform target frameworks works. CI runs net8 and net10 — the oldest asset set, and
@@ -558,7 +565,7 @@ is a two-line edit and a test run. The exception is a major: see the note on 3.x
 
 ## Releasing
 
-Tag it. `v2.30.2.1` builds, tests, publishes all four packages to nuget.org via trusted publishing,
+Tag it. `v3.14.0.1` builds, tests, publishes all four packages to nuget.org via trusted publishing,
 and creates a GitHub release.
 
 Pull requests publish a `-beta.<pr>.<run>` prerelease of the whole set.

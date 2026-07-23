@@ -1,14 +1,12 @@
 # What the façade covers, and what it leaves to `ConfigureNative`
 
-Measured against **dd-sdk-ios 2.30.2** and **dd-sdk-android 2.26.3** specifically, by reading the
-bound API surface of `DatadogNet.iOS 2.30.2.1` and `DatadogNet.Android 2.26.3.1` rather than the
-documentation.
+Measured against **dd-sdk-ios 3.14.0** and **dd-sdk-android 3.12.1** specifically, by reading the
+bound API surface of `DatadogNet.iOS 3.14.0.1` and `DatadogNet.Android 3.12.1.1` rather than the
+documentation. [`upgrade-to-3x.md`](upgrade-to-3x.md) covers what changed from the 2.x line.
 
-That distinction matters more than it sounds. Datadog's documentation describes the current SDKs, and
-several things it documents are **not in these versions** — `trackMemoryWarnings` and
-`trackResourceHeaders` are documented for iOS and appear nowhere in 2.30.2's bound surface;
-`trackResourceHeaders` likewise for Android 2.26.3. Anything below is what the pinned versions
-actually have.
+That distinction matters more than it sounds: the documentation describes the newest SDK, not the
+pinned one. `trackMemoryWarnings`, absent from 2.30.2, *is* in 3.14.0 — and is still iOS-only, so it
+stays behind `ConfigureNative`. Anything below is what the pinned versions actually have.
 
 The rule for lifting something into the façade is simple: **a setting is lifted when both platforms
 have an equivalent, and left to `ConfigureNative` when only one does.** A cross-platform property
@@ -51,6 +49,8 @@ on both.
 | Native | Façade |
 | --- | --- |
 | `startView` / `stopView` (by key) | `IRumMonitor.StartView` returning a disposable scope, `StopView` |
+| `addViewAttributes`, `removeViewAttributes` (3.x) | not yet lifted — see below |
+| `reportAppFullyDisplayed`, `addViewLoadingTime` | not yet lifted — see below |
 | `addAction`, `startAction`, `stopAction` | same names |
 | `addError` (message and error forms) | `AddError(Exception)`, `AddError(string, …)` |
 | `startResource`, `stopResource`, `stopResourceWithError` | same names, with nullable `int`/`long` |
@@ -69,9 +69,10 @@ on both.
 
 **Left to `ConfigureNative`:**
 
-- **iOS only** — `trackWatchdogTerminations`, `appHangThreshold`, `swiftUIViewsPredicate`,
-  `swiftUIActionsPredicate`, `onSessionStart`, `setURLSessionTracking`, and a custom
-  `uiKitViewsPredicate`/`uiKitActionsPredicate`.
+- **iOS only** — `trackWatchdogTerminations`, `trackMemoryWarnings`, `appHangThreshold`,
+  `swiftUIViewsPredicate`, `swiftUIActionsPredicate`, `onSessionStart`, `setURLSessionTracking`, a
+  custom `uiKitViewsPredicate`/`uiKitActionsPredicate`, and the 3.x **feature operations**
+  (`startOperation`, `succeedOperation`, `failOperation` and their `Feature` variants).
 - **Android only** — `trackNonFatalAnrs`, `collectAccessibility`, `setSlowFramesConfiguration`,
   `setSessionListener`, `setInitialResourceIdentifier`, `setLastInteractionIdentifier`, and the
   `Fragment`/`Mixed`/`Navigation` view-tracking strategies.
@@ -80,6 +81,13 @@ on both.
 **Not exposed at all:** `startView(viewController:)` on iOS and `startView(Object)` on Android take a
 platform view object as the key. A MAUI app has neither, and the key-based form is what
 `DatadogNet.Maui` uses.
+
+**Not yet lifted, and worth a future release.** 3.x adds *view-scoped* attributes —
+`addViewAttributes`/`removeViewAttributes` — which propagate to the actions, resources and errors
+recorded inside a view, removing the main reason to repeat attributes on every call. Also
+`reportAppFullyDisplayed` and `addViewLoadingTime`, for time-to-interactive. These belong on
+`IRumViewScope` rather than `IRumMonitor`, which is a shape change rather than an addition, so they
+are held for a release that can be designed around them rather than bolted onto this one.
 
 Two enums are narrower than one platform's:
 
@@ -113,32 +121,37 @@ Android has them.
 | Native | Façade |
 | --- | --- |
 | `Trace.enable` | `TraceOptions` on the configuration |
-| `DDTracer.shared` / `GlobalTracer.get()` | `Datadog.Tracer` |
+| `DDTracer.shared()` (iOS) / `GlobalDatadogTracer.get()` (Android) | `Datadog.Tracer` |
 | `startSpan` | `IDatadogTracer.StartSpan` |
 | `setTag` (string, number, bool) | `IDatadogSpan.SetTag` ×3 |
-| `setErrorWithKind` (iOS) / the error log-field convention (Android) | `SetError(Exception)`, `SetError(kind, …)` |
+| `setErrorWithKind` (iOS) / `setError` + `setErrorMessage` (Android) | `SetError(Exception)`, `SetError(kind, …)` |
 | `log` | `Log(dictionary)` |
 | `setActive` (iOS) / `activateSpan` (Android) | `Activate()` returning a scope |
 | `finish` | `Finish()`, and `Dispose()` |
 | `inject` | `IDatadogTracer.Inject` returning headers |
 | `sampleRate`, `service`, `networkInfoEnabled`, `bundleWithRumEnabled` | `TraceOptions` |
 | `tags` / `addTag` | `.GlobalTags` |
-| `setTracingHeaderTypes` (Android) / the writer types (iOS) | `.HeaderTypes` |
+| `withTracingHeadersTypes` (Android) / the writer types (iOS) | `.HeaderTypes` |
 
-Both SDKs are OpenTracing-shaped in 2.x, which is why this is one interface. The differences are
-below the API:
+The two SDKs no longer share a tracing shape — Android has its own `DatadogTracing`/`DatadogSpan`,
+iOS still has OpenTracing — and this is still one interface, because the *operations* line up even
+though the type names do not. The differences it absorbs:
 
-- **Trace and span ids.** Android has `SpanContext.toTraceId()`/`toSpanId()`. iOS has nothing — the
-  ids are parsed back out of an injected Datadog-format header.
+- **Trace and span ids.** Android has a typed 128-bit `DatadogTraceId` plus a `long` span id. iOS has
+  nothing on `OTSpanContext` — the ids are parsed back out of an injected Datadog-format header, so
+  the same trace renders as hex on one platform and decimal on the other.
 - **Header formats.** Android's are a property of the tracer, so one `inject` writes all of them.
-  iOS needs one writer object per format.
-- **`SetError`.** iOS has `setErrorWithKind`. `io.opentracing.Span` has no equivalent, so on Android
-  it is an `error` tag plus four specific log fields.
-- **Activation.** Android has a real scope manager and `Scope.close()`. On iOS `setActive` pushes and
-  `finish` pops, with no explicit deactivate.
+  iOS needs one writer object per format. The iOS writers no longer take a sampling argument in 3.x.
+- **`SetError`.** Both have first-class support now: `DatadogSpan.setError`/`setErrorMessage` and
+  `OTSpan.setErrorWithKind`. In 2.x Android had neither and the façade wrote out Datadog's log-field
+  convention by hand.
+- **Activation.** Android has a real scope manager and `DatadogScope.close()`. On iOS `setActive`
+  pushes and `finish` pops, with no explicit deactivate.
+- **Injection carriers.** Android's setter is a Kotlin `(C, String, String) -> Unit`, which has no C#
+  lambda form and needs a `Java.Lang.Object` implementing `IFunction3`.
 
 **Left to `ConfigureNative`:** the span event mapper, `DDTraceURLSessionTracking` (iOS), and
-`setPartialFlushThreshold` (Android).
+`withPartialFlushMinSpans` / `setTraceRateLimit` (Android).
 
 **Not exposed:** baggage items (`setBaggageItem`/`getBaggageItem`). Present on both, but deprecated in
 OpenTracing and a footgun — baggage propagates to every downstream service, so anything put in it
@@ -187,9 +200,13 @@ mapper in C#.
 | `isInitialized` | `Datadog.IsInitialized` |
 
 **Not exposed:** named SDK instances. Both SDKs support several cores side by side —
-`Datadog.initialize(instanceName, …)` on Android, and the `SDKCore` parameter throughout. No MAUI app
-has been observed to want two, and threading an instance name through every call would cost every app
-something to serve none.
+`Datadog.initialize(instanceName, …)` on Android, and in 3.x an `instanceName` overload on nearly
+every iOS member. No MAUI app has been observed to want two, and threading an instance name through
+every call would cost every app something to serve none.
+
+**Not exposed, because there is nothing to expose:** `DatadogNet.Flags.iOS` and
+`DatadogNet.Profiling.iOS`. Upstream ships both frameworks in 3.x but has not projected either into
+Objective-C, so no C# API exists to call. Android has no counterpart packages.
 
 ## Crash reporting and web views
 

@@ -59,16 +59,34 @@ public static class Packages
     /// Asserted by name because getting this graph wrong is invisible until an app fails at
     /// runtime: a missing SessionReplayMaterial reference does not stop anything compiling, it
     /// makes Session Replay record a MAUI app as a screen of blank boxes.
+    /// <para>
+    /// OpenTracing left this list in 3.x, where dd-sdk-android removed the dependency outright.
+    /// </para>
     /// </remarks>
     public static readonly string[] AndroidBindingDependencies =
     [
         "DatadogNet.Core.Android",
         "DatadogNet.Logs.Android",
-        "DatadogNet.OpenTracing.Android",
         "DatadogNet.RUM.Android",
         "DatadogNet.SessionReplay.Android",
         "DatadogNet.SessionReplayMaterial.Android",
         "DatadogNet.Trace.Android",
+    ];
+
+    /// <summary>The DatadogNet.iOS packages the iOS assets must depend on.</summary>
+    /// <remarks>
+    /// Five, where the 2.x façade needed one. dd-sdk-ios 3.0 dissolved <c>DatadogObjc</c> — it
+    /// survives only as an empty compatibility meta-package — so each module is referenced directly.
+    /// Asserted by name because depending on the meta-package instead would restore and build
+    /// perfectly well, and would quietly reintroduce an indirection that exists for someone else.
+    /// </remarks>
+    public static readonly string[] IosBindingDependencies =
+    [
+        "DatadogNet.Core.iOS",
+        "DatadogNet.Logs.iOS",
+        "DatadogNet.RUM.iOS",
+        "DatadogNet.SessionReplay.iOS",
+        "DatadogNet.Trace.iOS",
     ];
 
     /// <summary>xunit member data: one row per package.</summary>

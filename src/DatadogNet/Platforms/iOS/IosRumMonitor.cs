@@ -1,4 +1,5 @@
-using DatadogObjc;
+using DatadogCore;
+using DatadogRUM;
 using Foundation;
 
 namespace DatadogNet;
@@ -13,7 +14,8 @@ namespace DatadogNet;
 /// </remarks>
 internal sealed class IosRumMonitor : IRumMonitor
 {
-    private static DDRUMMonitor Monitor => DDRUMMonitor.Shared;
+    // Shared() is a method in 3.x, where 2.x had a static property.
+    private static DDRUMMonitor Monitor => DDRUMMonitor.Shared();
 
     public bool IsEnabled => Datadog.Configuration?.Rum is not null;
 
@@ -256,7 +258,7 @@ internal sealed class IosRumMonitor : IRumMonitor
             }
 
             stopped = true;
-            DDRUMMonitor.Shared.StopViewWithKey(Key, DatadogAttributes.From(attributes));
+            DDRUMMonitor.Shared().StopViewWithKey(Key, DatadogAttributes.From(attributes));
         }
 
         public void Dispose() => Stop();

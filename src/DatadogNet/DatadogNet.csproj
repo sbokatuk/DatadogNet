@@ -25,6 +25,10 @@
     weight - add DatadogNet.SessionReplayCompose.Android yourself and register it through
     SessionReplayOptions.ConfigureNative if you host Compose content.
 
+    OpenTracing is gone from the list because dd-sdk-android 3.0 removed the dependency outright:
+    tracing is DatadogTracing/GlobalDatadogTracer now, and the trace module has split into Trace,
+    TraceApi and TraceInternal - the latter two arrive transitively through Trace.
+
     Ndk (native crash capture) and WebView are deliberately absent - see DatadogNet.CrashReporting
     and DatadogNet.WebView, which exist so an app that wants neither pays for neither. A signal
     handler in particular is not something a package called "DatadogNet" should install for you.
@@ -34,20 +38,28 @@
     <PackageReference Include="DatadogNet.Logs.Android" Version="$(DatadogNetAndroidVersion)" />
     <PackageReference Include="DatadogNet.RUM.Android" Version="$(DatadogNetAndroidVersion)" />
     <PackageReference Include="DatadogNet.Trace.Android" Version="$(DatadogNetAndroidVersion)" />
-    <PackageReference Include="DatadogNet.OpenTracing.Android" Version="$(DatadogNetAndroidVersion)" />
     <PackageReference Include="DatadogNet.SessionReplay.Android" Version="$(DatadogNetAndroidVersion)" />
     <PackageReference Include="DatadogNet.SessionReplayMaterial.Android" Version="$(DatadogNetAndroidVersion)" />
   </ItemGroup>
 
   <!--
-    iOS. One reference: DatadogObjc is the framework Datadog ships precisely to re-export the whole
-    SDK to Objective-C, and DatadogNet.Objc.iOS depends on Core, Internal, Logs, RUM, SessionReplay
-    and Trace. There is no way to take less of it, which is also why Session Replay is in this
-    package rather than in one of its own - an iOS app pays for the framework whatever the package
-    layout says.
+    iOS. Five references where 2.x needed one.
+
+    dd-sdk-ios 3.0 dissolved DatadogObjc: the DD* types moved into the module they belong to, each
+    with its own namespace, and DatadogNet.Objc.iOS survives only as an empty compatibility
+    meta-package that redirects an existing 2.x PackageReference. Depending on it here would pull
+    the same five packages through an indirection that exists for someone else's benefit.
+
+    Session Replay is still in this package rather than one of its own, for the reason it always
+    was: it is what makes Session Replay usable from MAUI at all, and the Android side needs the
+    Material extension to render MAUI's own controls.
   -->
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
-    <PackageReference Include="DatadogNet.Objc.iOS" Version="$(DatadogNetiOSVersion)" />
+    <PackageReference Include="DatadogNet.Core.iOS" Version="$(DatadogNetiOSVersion)" />
+    <PackageReference Include="DatadogNet.RUM.iOS" Version="$(DatadogNetiOSVersion)" />
+    <PackageReference Include="DatadogNet.Logs.iOS" Version="$(DatadogNetiOSVersion)" />
+    <PackageReference Include="DatadogNet.Trace.iOS" Version="$(DatadogNetiOSVersion)" />
+    <PackageReference Include="DatadogNet.SessionReplay.iOS" Version="$(DatadogNetiOSVersion)" />
   </ItemGroup>
 
 </Project>

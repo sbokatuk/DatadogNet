@@ -1,4 +1,5 @@
-using DatadogObjc;
+using DatadogCore;
+using DatadogLogs;
 
 namespace DatadogNet;
 

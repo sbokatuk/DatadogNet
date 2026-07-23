@@ -1,21 +1,34 @@
 using Com.Datadog.Android;
-using IO.Opentracing;
-using IO.Opentracing.Propagation;
-using IO.Opentracing.Util;
+using Com.Datadog.Android.Trace;
+
+// Both native interfaces collide with this façade's own names, which is a consequence of Datadog
+// having converged on the same vocabulary in 3.x. Aliased once here.
+using NativeScope = Com.Datadog.Android.Trace.Api.Scope.IDatadogScope;
+using NativeSpan = Com.Datadog.Android.Trace.Api.Span.IDatadogSpan;
+using NativeSpanContext = Com.Datadog.Android.Trace.Api.Span.IDatadogSpanContext;
 
 namespace DatadogNet;
 
 /// <summary>
-/// Tracing over <c>AndroidTracer</c>, which implements <c>io.opentracing.Tracer</c>.
+/// Tracing over <c>DatadogTracing</c> and <c>GlobalDatadogTracer</c>.
 /// </summary>
 /// <remarks>
-/// The tracer is reached through <c>GlobalTracer</c> rather than kept in a field: that is where
-/// <c>EnableTrace</c> registers it, and where any other Datadog integration in the process expects
-/// to find it.
+/// This is the part of the façade that the 3.x upgrade rewrote. dd-sdk-android 3.0 removed the
+/// OpenTracing dependency and <c>AndroidTracer</c> with it: spans are <c>DatadogSpan</c>, built
+/// through <c>DatadogTracing.NewTracerBuilder(core)</c> and registered on
+/// <c>GlobalDatadogTracer</c>.
+/// <para>
+/// The trade is favourable. <c>DatadogSpan</c> has real <c>SetError</c>, <c>SetErrorMessage</c> and
+/// <c>LogErrorMessage</c> members where <c>io.opentracing.Span</c> had none and this file had to
+/// spell out Datadog's four-log-field convention by hand and hope the names were right;
+/// <c>SetTag</c> has typed overloads where a numeric tag used to bind to the generic
+/// <c>setTag(Tag&lt;T&gt;, T)</c> form and fail to compile; and the ids are readable directly.
+/// </para>
 /// </remarks>
 internal sealed class AndroidTracerAdapter : IDatadogTracer
 {
-    public bool IsEnabled => Datadog.Configuration?.Trace is not null && GlobalTracer.IsRegistered;
+    public bool IsEnabled =>
+        Datadog.Configuration?.Trace is not null && GlobalDatadogTracer.Instance?.OrNull is not null;
 
     public IDatadogSpan? ActiveSpan => ActiveSpanTracker.Current;
 
@@ -26,44 +39,31 @@ internal sealed class AndroidTracerAdapter : IDatadogTracer
     {
         ArgumentNullException.ThrowIfNull(operationName);
 
-        var builder = GlobalTracer.Get()!.BuildSpan(operationName)!;
+        // buildSpan takes a CharSequence in 3.x, and the binding generates no string overload.
+        var builder = GlobalDatadogTracer.Get()!.BuildSpan(new Java.Lang.String(operationName))!;
 
         if ((parent ?? ActiveSpanTracker.Current) is AndroidSpan effectiveParent)
         {
-            builder.AsChildOf(effectiveParent.Native.Context());
+            builder.WithParentSpan(effectiveParent.Native);
         }
         else
         {
-            // No parent and nothing active: OpenTracing would otherwise adopt whatever the SDK's
-            // own scope manager considers active, which for a MAUI app is usually a span some
-            // unrelated integration left open.
+            // No parent and nothing active: the tracer would otherwise adopt whatever its own scope
+            // manager considers active, which for a MAUI app is usually a span some unrelated
+            // integration left open.
             builder.IgnoreActiveSpan();
         }
 
         if (tags is { Count: > 0 })
         {
-            foreach (var tag in tags)
+            // withTag(String, Object) takes anything the SDK can serialise, so the attribute
+            // converter's output goes straight through - unlike 2.x, where the OpenTracing builder
+            // overloaded on String, Number and boolean and each value had to be dispatched by type.
+            var converted = DatadogAttributes.From(tags);
+
+            foreach (var tag in converted)
             {
-                // io.opentracing.Tracer.SpanBuilder overloads withTag on String, Number and
-                // boolean; anything else has to become a string, which is also what the Datadog
-                // backend stores it as.
-                switch (tag.Value)
-                {
-                    case null:
-                        break;
-                    case bool flag:
-                        builder.WithTag(tag.Key, flag);
-                        break;
-                    case sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal:
-                        builder.WithTag(
-                            tag.Key,
-                            Java.Lang.Double.ValueOf(
-                                Convert.ToDouble(tag.Value, System.Globalization.CultureInfo.InvariantCulture)));
-                        break;
-                    default:
-                        builder.WithTag(tag.Key, tag.Value.ToString());
-                        break;
-                }
+                builder.WithTag(tag.Key, tag.Value);
             }
         }
 
@@ -76,54 +76,73 @@ internal sealed class AndroidTracerAdapter : IDatadogTracer
 
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        if (span is not AndroidSpan native || !GlobalTracer.IsRegistered)
+        if (span is not AndroidSpan native
+            || GlobalDatadogTracer.Instance?.OrNull is null
+            || native.Native.Context() is not { } context)
         {
             return headers;
         }
 
         // One call writes every header type the tracer was configured with - the formats are a
-        // property of AndroidTracer rather than of the writer, which is the reverse of iOS, where
-        // each format needs its own writer.
+        // property of the tracer rather than of the writer, which is the reverse of iOS.
         //
-        // A HeaderCollector rather than the SDK's own TextMapInjectAdapter: that adapter's
-        // constructor takes an IDictionary<string, string>, which the binding marshals by *copying*
-        // into a fresh java.util.HashMap. The Java side then writes the headers into the copy, the
-        // managed dictionary never sees them, and injection silently produces nothing. Implementing
-        // ITextMapInject makes the SDK call back into managed code instead.
-        var carrier = new HeaderCollector(headers);
-
-        GlobalTracer.Get()!.Inject(
-            native.Native.Context(),
-            IFormat.Builtin.TextMapInject!,
-            carrier);
+        // The setter is a Kotlin (C, String, String) -> Unit, which binds as IFunction3 and which C#
+        // cannot express as a lambda: it needs a real Java-callable object. 2.x had a different trap
+        // in the same place - TextMapInjectAdapter's carrier was marshalled by copy, so the SDK
+        // wrote the headers into a copy the caller never saw - and both end the same way, with a
+        // request going out untraced and nothing reported.
+        //
+        // The carrier is unused: this setter writes straight into the managed dictionary, so there
+        // is nothing for the SDK to hand back through it. It still has to be a real Java object -
+        // Java.Lang.Object's own constructor is protected - so an empty string stands in.
+        GlobalDatadogTracer.Get()!.Propagate()!.Inject(
+            context,
+            new Java.Lang.String(string.Empty),
+            new HeaderSetter(headers));
 
         return headers;
     }
 
-    /// <summary>Collects injected headers straight into a managed dictionary.</summary>
-    private sealed class HeaderCollector(IDictionary<string, string> headers)
-        : Java.Lang.Object, ITextMapInject
+    /// <summary>Receives each injected header and puts it straight into a managed dictionary.</summary>
+    private sealed class HeaderSetter(IDictionary<string, string> headers)
+        : Java.Lang.Object, Kotlin.Jvm.Functions.IFunction3
     {
-        public void Put(string key, string value) => headers[key] = value;
+        public Java.Lang.Object? Invoke(Java.Lang.Object? carrier, Java.Lang.Object? key, Java.Lang.Object? value)
+        {
+            if (key?.ToString() is { } name && value?.ToString() is { } header)
+            {
+                headers[name] = header;
+            }
+
+            // Kotlin's Unit, which the binding maps to null for a Unit-returning lambda.
+            return null;
+        }
     }
 }
 
-/// <summary>A span over <c>io.opentracing.Span</c>.</summary>
-internal sealed class AndroidSpan(ISpan native) : IDatadogSpan
+/// <summary>A span over <c>DatadogSpan</c>.</summary>
+internal sealed class AndroidSpan(NativeSpan native) : IDatadogSpan
 {
     private bool finished;
 
-    internal ISpan Native { get; } = native;
+    internal NativeSpan Native { get; } = native;
 
-    public string TraceId => Native.Context()?.ToTraceId() ?? string.Empty;
+    /// <remarks>
+    /// Hexadecimal, because <c>DatadogTraceId</c> is 128-bit in 3.x and <c>ToLong()</c> would
+    /// silently return the low half. iOS reports the decimal form its own headers carry, so the two
+    /// strings do not match character for character — they name the same trace in Datadog, and
+    /// neither SDK offers the other's rendering.
+    /// </remarks>
+    public string TraceId => Context?.TraceId?.ToHexString() ?? string.Empty;
 
-    public string SpanId => Native.Context()?.ToSpanId() ?? string.Empty;
+    public string SpanId => Context is { } context
+        ? context.SpanId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        : string.Empty;
+
+    private NativeSpanContext? Context => Native.Context();
 
     public void SetTag(string key, string value) => Native.SetTag(key, value);
 
-    // The Number overload, not the generic setTag(Tag<T>, T) one: a bare C# double binds to the
-    // generic form and does not compile, which is the same trap DatadogNet.Android's README
-    // documents for setTag on a span.
     public void SetTag(string key, double value) => Native.SetTag(key, Java.Lang.Double.ValueOf(value));
 
     public void SetTag(string key, bool value) => Native.SetTag(key, value);
@@ -140,48 +159,31 @@ internal sealed class AndroidSpan(ISpan native) : IDatadogSpan
 
     public void SetError(string kind, string message, string? stack = null)
     {
-        // io.opentracing has no setError; the Datadog convention is these four log fields, which
-        // dd-trace turns into the span's error facets. dd-sdk-ios has a real setErrorWithKind, so
-        // this is where the two SDKs' tracing APIs differ most.
-        Native.SetTag("error", true);
-
-        var fields = new Dictionary<string, object?>
-        {
-            ["event"] = "error",
-            ["error.kind"] = kind,
-            ["message"] = message,
-        };
+        // Real members in 3.x. In 2.x io.opentracing.Span had no setError at all, so this was an
+        // "error" tag plus four log fields by convention - and getting a field name wrong produced a
+        // span that looked fine and was never counted as an error.
+        Native.SetError(Java.Lang.Boolean.True!);
+        Native.SetErrorMessage($"{kind}: {message}");
 
         if (stack is not null)
         {
-            fields["stack"] = stack;
+            Native.LogErrorMessage(stack);
         }
-
-        Log(fields);
     }
 
     public void Log(IReadOnlyDictionary<string, object?> fields)
     {
         ArgumentNullException.ThrowIfNull(fields);
 
-        // io.opentracing.Span.log takes Map<String, ?>, which the binding projects as
-        // IDictionary<string, object> rather than the IDictionary<string, Java.Lang.Object> every
-        // Datadog API takes - so DatadogAttributes' output is re-boxed one level up rather than
-        // passed through. The values are already Java objects; only the dictionary type differs.
-        var converted = DatadogAttributes.From(fields);
-        var carrier = new Dictionary<string, object>(converted.Count);
-
-        foreach (var pair in converted)
-        {
-            carrier[pair.Key] = pair.Value;
-        }
-
-        Native.Log(carrier);
+        // LogAttributes takes IDictionary<string, Java.Lang.Object> - the same shape every other
+        // Datadog member takes, so unlike 2.x's io.opentracing log(Map<String, ?>) the converter's
+        // output needs no re-boxing.
+        Native.LogAttributes(DatadogAttributes.From(fields));
     }
 
     public IDisposable Activate()
     {
-        var scope = GlobalTracer.Get()!.ActivateSpan(Native);
+        var scope = GlobalDatadogTracer.Get()!.ActivateSpan(Native);
 
         return ActiveSpanTracker.Activate(this, new ScopeHandle(scope));
     }
@@ -200,12 +202,12 @@ internal sealed class AndroidSpan(ISpan native) : IDatadogSpan
 
     public void Dispose() => Finish();
 
-    /// <summary>Closes an OpenTracing scope on dispose.</summary>
+    /// <summary>Closes a tracer scope on dispose.</summary>
     /// <remarks>
-    /// <c>io.opentracing.Scope</c> extends <c>Closeable</c>, so the binding gives it a
-    /// <c>Close()</c> rather than the <see cref="IDisposable"/> the façade hands back.
+    /// <c>DatadogScope</c> exposes <c>Close()</c> rather than the <see cref="IDisposable"/> the
+    /// façade hands back, exactly as <c>io.opentracing.Scope</c> did.
     /// </remarks>
-    private sealed class ScopeHandle(IScope? scope) : IDisposable
+    private sealed class ScopeHandle(NativeScope? scope) : IDisposable
     {
         public void Dispose() => scope?.Close();
     }

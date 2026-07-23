@@ -8,9 +8,9 @@ namespace DatadogNet;
 /// uploads happily to the wrong intake and reports no error. It is shown at the top of any
 /// <c>app.datadoghq.*</c> page, and is part of the URL you log in at.
 /// <para>
-/// Only the sites both native SDKs declare are listed. dd-sdk-android 2.26.3 additionally has a
-/// <c>STAGING</c> member, which is Datadog's own internal environment and has no dd-sdk-ios
-/// counterpart; a façade that exposed it would compile on Android and throw on iOS.
+/// Only the sites both native SDKs declare are listed. dd-sdk-android 3.12.1 additionally has
+/// <c>STAGING</c> — Datadog's own internal environment — and <c>UK1</c>, neither of which
+/// dd-sdk-ios 3.14.0 has; a façade that exposed either would compile on Android and throw on iOS.
 /// </para>
 /// </remarks>
 public enum DatadogSite
@@ -35,4 +35,11 @@ public enum DatadogSite
 
     /// <summary>US1-FED — <c>app.ddog-gov.com</c>, the FedRAMP environment.</summary>
     Us1Fed,
+
+    /// <summary>
+    /// US2-FED — the second FedRAMP environment.
+    /// </summary>
+    /// <remarks>New in the 3.x line: dd-sdk-ios 2.30.2 had no <c>us2_fed</c>, so it could not be
+    /// offered before both platforms declared it.</remarks>
+    Us2Fed,
 }

@@ -1,20 +1,24 @@
-using DatadogObjc;
+using DatadogCore;
+using DatadogInternal;
+using DatadogLogs;
+using DatadogRUM;
 using DatadogSessionReplay;
+using DatadogTrace;
 using Foundation;
 
-// DatadogObjc declares a TrackingConsent enum of its own - DatadogNet.iOS added it, because the
-// bound DDTrackingConsent is a class of static instances rather than an enum - and it collides
+// DatadogCore declares a TrackingConsent enum of its own - DatadogNet.iOS added it, because the
+// bound DDTrackingConsent is a class of static factory methods rather than an enum - and it collides
 // with ours. Aliased rather than fully qualified at every use.
-using NativeConsent = DatadogObjc.TrackingConsent;
+using NativeConsent = DatadogCore.TrackingConsent;
 
 namespace DatadogNet;
 
-/// <summary>The iOS implementation, over <c>DatadogNet.Objc.iOS</c>.</summary>
+/// <summary>The iOS implementation, over <c>DatadogNet.iOS</c> 3.x.</summary>
 /// <remarks>
-/// dd-sdk-ios ships a <c>DatadogObjc</c> framework whose whole purpose is to re-export the SDK to
-/// Objective-C, so a single package reaches every feature. That is why the iOS side of this façade
-/// is one file and the Android side is several: there, each feature is a separate module with its
-/// own Kotlin builder.
+/// Five namespaces where the 2.x implementation had one. dd-sdk-ios 3.0 dissolved the
+/// <c>DatadogObjc</c> framework that used to re-export the whole SDK: the <c>DD*</c> types now live
+/// in the module they belong to. Nothing about the API changed in the move — the same selectors are
+/// there — but every <c>using</c> did, and a handful of members that were properties became methods.
 /// </remarks>
 public static partial class Datadog
 {
@@ -41,19 +45,21 @@ public static partial class Datadog
         }
 
         // DatadogConfiguration.CrashReportsEnabled has no counterpart here and is documented as
-        // Android-only: on iOS crash reporting is an entire separate framework rather than a
-        // switch. See the DatadogNet.CrashReporting package.
+        // Android-only: on iOS crash reporting is an entire separate framework rather than a switch,
+        // and in 3.x its engine is KSCrash. See the DatadogNet.CrashReporting package.
         //
-        // FirstPartyHosts has no counterpart either. dd-sdk-ios carries first-party hosts on
-        // DDRUMURLSessionTracking / DDTraceURLSessionTracking, which only apply to an NSURLSession
-        // the SDK has instrumented - and NSUrlSessionHandler, which is what HttpClient uses, owns
-        // its delegate rather than exposing it. DatadogHttpMessageHandler reads the host list from
-        // the configuration itself and does the injection in the managed pipeline, which is what
-        // makes first-party hosts work identically on both platforms.
+        // FirstPartyHosts has no configuration-level counterpart either - it lives on
+        // DDURLSessionInstrumentation, which only applies to an NSURLSession the SDK has
+        // instrumented, and NSUrlSessionHandler owns its delegate rather than exposing it.
+        // DatadogHttpMessageHandler reads the host list from the configuration and injects in the
+        // managed pipeline, which is what makes first-party hosts work identically on both platforms.
         configuration.ConfigureNative?.Invoke(native);
 
         DDDatadog.InitializeWithConfiguration(native, ToNativeConsent(configuration.TrackingConsent));
-        DDDatadog.VerbosityLevel = ToNativeVerbosity(configuration.Verbosity);
+
+        // A method in 3.x, where 2.x had a VerbosityLevel property, and the enum moved to
+        // DatadogInternal and was renamed from DDSDKVerbosityLevel to DDCoreLoggerLevel.
+        DDDatadog.SetVerbosityLevel(ToNativeVerbosity(configuration.Verbosity));
 
         // Order matters and is this method's responsibility rather than the caller's: RUM has to be
         // enabled before Session Replay, which attaches to the RUM session and silently records
@@ -91,16 +97,9 @@ public static partial class Datadog
             VitalsUpdateFrequency = ToNativeVitalsFrequency(options.VitalsUpdateFrequency),
         };
 
-        if (options.LongTaskThreshold is { } threshold)
-        {
-            native.LongTaskThreshold = threshold.TotalSeconds;
-        }
-        else
-        {
-            // dd-sdk-ios disables long-task tracking by setting the threshold to zero rather than
-            // by a flag, which is not obvious from the property name.
-            native.LongTaskThreshold = 0;
-        }
+        // dd-sdk-ios disables long-task tracking by setting the threshold to zero rather than by a
+        // flag, which is not obvious from the property name.
+        native.LongTaskThreshold = options.LongTaskThreshold is { } threshold ? threshold.TotalSeconds : 0;
 
         if (options.TrackAutomaticInstrumentation)
         {
@@ -192,17 +191,17 @@ public static partial class Datadog
         DDDatadog.SetTrackingConsent(ToManagedNativeConsent(consent));
 
     private static partial DatadogVerbosity PlatformGetVerbosity() =>
-        DDDatadog.VerbosityLevel switch
+        DDDatadog.VerbosityLevel() switch
         {
-            DDSDKVerbosityLevel.Debug => DatadogVerbosity.Debug,
-            DDSDKVerbosityLevel.Warn => DatadogVerbosity.Warn,
-            DDSDKVerbosityLevel.Error => DatadogVerbosity.Error,
-            DDSDKVerbosityLevel.Critical => DatadogVerbosity.Critical,
+            DDCoreLoggerLevel.Debug => DatadogVerbosity.Debug,
+            DDCoreLoggerLevel.Warn => DatadogVerbosity.Warn,
+            DDCoreLoggerLevel.Error => DatadogVerbosity.Error,
+            DDCoreLoggerLevel.Critical => DatadogVerbosity.Critical,
             _ => DatadogVerbosity.None,
         };
 
     private static partial void PlatformSetVerbosity(DatadogVerbosity verbosity) =>
-        DDDatadog.VerbosityLevel = ToNativeVerbosity(verbosity);
+        DDDatadog.SetVerbosityLevel(ToNativeVerbosity(verbosity));
 
     private static partial void PlatformSetUser(
         string id,
@@ -239,15 +238,20 @@ public static partial class Datadog
 
     private static partial ISessionReplay CreateSessionReplay() => new IosSessionReplay();
 
+    /// <remarks>
+    /// Methods in 3.x, where 2.x exposed these as static properties. <c>Us2_fed()</c> is new in 3.x
+    /// and dd-sdk-android has it too, so unlike in 2.x it is on <see cref="DatadogSite"/>.
+    /// </remarks>
     private static DDSite ToNativeSite(DatadogSite site) => site switch
     {
-        DatadogSite.Us1 => DDSite.Us1,
-        DatadogSite.Us3 => DDSite.Us3,
-        DatadogSite.Us5 => DDSite.Us5,
-        DatadogSite.Eu1 => DDSite.Eu1,
-        DatadogSite.Ap1 => DDSite.Ap1,
-        DatadogSite.Ap2 => DDSite.Ap2,
-        DatadogSite.Us1Fed => DDSite.Us1_fed,
+        DatadogSite.Us1 => DDSite.Us1(),
+        DatadogSite.Us3 => DDSite.Us3(),
+        DatadogSite.Us5 => DDSite.Us5(),
+        DatadogSite.Eu1 => DDSite.Eu1(),
+        DatadogSite.Ap1 => DDSite.Ap1(),
+        DatadogSite.Ap2 => DDSite.Ap2(),
+        DatadogSite.Us1Fed => DDSite.Us1_fed(),
+        DatadogSite.Us2Fed => DDSite.Us2_fed(),
         _ => throw new ArgumentOutOfRangeException(nameof(site), site, "Unknown Datadog site."),
     };
 
@@ -272,20 +276,20 @@ public static partial class Datadog
         _ => DDBatchProcessingLevel.Medium,
     };
 
-    private static DDSDKVerbosityLevel ToNativeVerbosity(DatadogVerbosity verbosity) => verbosity switch
+    private static DDCoreLoggerLevel ToNativeVerbosity(DatadogVerbosity verbosity) => verbosity switch
     {
-        DatadogVerbosity.Debug => DDSDKVerbosityLevel.Debug,
-        DatadogVerbosity.Warn => DDSDKVerbosityLevel.Warn,
-        DatadogVerbosity.Error => DDSDKVerbosityLevel.Error,
-        DatadogVerbosity.Critical => DDSDKVerbosityLevel.Critical,
-        _ => DDSDKVerbosityLevel.None,
+        DatadogVerbosity.Debug => DDCoreLoggerLevel.Debug,
+        DatadogVerbosity.Warn => DDCoreLoggerLevel.Warn,
+        DatadogVerbosity.Error => DDCoreLoggerLevel.Error,
+        DatadogVerbosity.Critical => DDCoreLoggerLevel.Critical,
+        _ => DDCoreLoggerLevel.Critical,
     };
 
     private static DDTrackingConsent ToNativeConsent(TrackingConsent consent) => consent switch
     {
-        TrackingConsent.Granted => DDTrackingConsent.Granted,
-        TrackingConsent.NotGranted => DDTrackingConsent.NotGranted,
-        _ => DDTrackingConsent.Pending,
+        TrackingConsent.Granted => DDTrackingConsent.Granted(),
+        TrackingConsent.NotGranted => DDTrackingConsent.NotGranted(),
+        _ => DDTrackingConsent.Pending(),
     };
 
     private static NativeConsent ToManagedNativeConsent(TrackingConsent consent) => consent switch
