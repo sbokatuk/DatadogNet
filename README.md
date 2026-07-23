@@ -127,6 +127,22 @@ A multi-headed app guards that one reference:
 > restore error blaming the wrong package, but it cannot be used from one. For MAUI, target net9 or
 > net10.
 
+**A net8 Android app needs one extra line.** Two packages in the AndroidX graph disagree about
+`SavedState` — `Navigation.Common 2.9.6` wants `>= 1.4.0`, `SavedState.Ktx 1.3.2` pins
+`[1.3.2, 1.3.3)`. The .NET 9 and .NET 10 SDKs resolve the higher version and warn (`NU1608`); the
+.NET 8 SDK refuses with `NU1107`. Add the version those other bands already land on:
+
+```xml
+<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+  <PackageReference Include="Xamarin.AndroidX.SavedState" Version="1.4.0" />
+</ItemGroup>
+```
+
+**A net8 Android app must also be built with the .NET 8 SDK**, not the .NET 9 one. The .NET 9 band
+has the API 34 *reference* packs and compiles it, then fails at packaging with `NETSDK1112` because
+it has no API 34 *runtime* packs — those belong to the .NET 8 workload. iOS has no equivalent
+constraint: the .NET 9 band builds `net8.0-ios18.0` outright.
+
 **Minimum OS**: Android API **23**, iOS **12.2**.
 
 > The dd-sdk-android `.aar` manifests declare API 21, and `DatadogNet.Android`'s README records

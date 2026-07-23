@@ -72,6 +72,26 @@
     <None Remove="Platforms/Android/**/*.cs" />
   </ItemGroup>
 
+  <!--
+    A direct reference that only exists to settle a transitive conflict, and one every net8 Android
+    consumer of these packages needs.
+
+    Two packages in the AndroidX graph the Datadog bindings pull in disagree about SavedState:
+    Navigation.Common 2.9.6 wants >= 1.4.0, while SavedState.Ktx 1.3.2 - reached through
+    Activity.Ktx - pins [1.3.2, 1.3.3). The .NET 9 and .NET 10 SDKs resolve the higher version and
+    emit NU1608, which this repository suppresses because the result works. The .NET 8 SDK refuses:
+
+        error NU1107: Version conflict detected for Xamarin.AndroidX.SavedState. Install/reference
+        Xamarin.AndroidX.SavedState 1.4.0 directly to project … to resolve this issue.
+
+    1.4.0 is what the other two bands already land on, so pinning it changes nothing for net9 and
+    net10 and unblocks net8. Applied to every Android head rather than to net8 alone, so all three
+    resolve identically and the checks compare like with like.
+  -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <PackageReference Include="Xamarin.AndroidX.SavedState" Version="1.4.0" />
+  </ItemGroup>
+
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
     <Compile Include="Platforms/iOS/**/*.cs" />
     <None Remove="Platforms/iOS/**/*.cs" />

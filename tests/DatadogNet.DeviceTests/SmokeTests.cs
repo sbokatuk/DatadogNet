@@ -336,8 +336,14 @@ public static class SmokeTests
     {
         // Asynchronous on both platforms, through entirely different mechanisms: a block on iOS and
         // a kotlin.jvm.functions.Function1 on Android, which C# cannot express as a lambda at all.
+        //
+        // The timeout is generous because this is the only check whose result has to travel back
+        // across the bridge on the SDK's own queue, and the app runs interpreted on a shared CI
+        // runner. Ten seconds was enough locally and not on CI. It is a timeout rather than an
+        // unbounded await so that a genuinely broken callback fails the run instead of hanging it
+        // until the job's own limit.
         var sessionId = await Datadog.Rum.GetCurrentSessionIdAsync()
-            .WaitAsync(TimeSpan.FromSeconds(10));
+            .WaitAsync(TimeSpan.FromSeconds(60));
 
         Report($"session id: {sessionId ?? "(none)"}");
 

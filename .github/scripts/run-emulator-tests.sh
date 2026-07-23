@@ -24,8 +24,25 @@ POLL_INTERVAL=5
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PROJECT="${REPO_ROOT}/tests/DatadogNet.DeviceTests/DatadogNet.DeviceTests.csproj"
 
+# The SDK band is chosen by the *Android API level* in the target framework, not by the .NET version
+# alone, because that is what decides which workload owns the runtime packs:
+#
+#   net8.0-android34.0  -> android 34.0.x, in the .NET 8 band
+#   net9.0-android35.0  -> android 35.0.x, in the .NET 9 band
+#   net10.0-android36.0 -> android 36.0.x, in the .NET 10 band
+#
+# The .NET 9 band compiles a net8 app happily - it has the API 34 *reference* packs - and then fails
+# at packaging time, because it has no API 34 *runtime* packs and they cannot be restored from
+# NuGet:
+#
+#     error NETSDK1112: The runtime pack for Microsoft.Android.Runtime.34.android-x64 was not
+#     downloaded. Try running a NuGet restore with the RuntimeIdentifier 'android-x64'.
+#
+# The restore that error suggests does not help; the packs come from the workload. Note that the iOS
+# runner does *not* do this - see the comment there.
 case "${TARGET_FRAMEWORK}" in
     net10.0-*) sdk_major=10 ;;
+    net8.0-*)  sdk_major=8 ;;
     *)         sdk_major=9 ;;
 esac
 

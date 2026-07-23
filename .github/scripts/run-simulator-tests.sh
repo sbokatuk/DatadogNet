@@ -22,6 +22,13 @@ PROJECT="${REPO_ROOT}/tests/DatadogNet.DeviceTests/DatadogNet.DeviceTests.csproj
 # The .NET 9 band builds net8/net9 and the .NET 10 band builds net9/net10, so pick the SDK that owns
 # the requested target framework. The SDK is resolved from the working directory, and the
 # repository's global.json pins .NET 9, hence the scratch directory.
+#
+# net8 stays on the .NET 9 band here, unlike the Android runner, and the difference is not an
+# oversight. There the API level in the target framework decides which workload owns the runtime
+# packs, and API 34 belongs to .NET 8. Here the iOS SDK version does not move with the target
+# framework the same way: the .NET 9 band's iOS workload builds net8.0-ios18.0 outright, runtime
+# packs included. Building it on the .NET 8 band would additionally pin the runner to Xcode 16,
+# while everything else in this repository needs Xcode 26.
 case "${TARGET_FRAMEWORK}" in
     net10.0-*) sdk_major=10 ;;
     *)         sdk_major=9 ;;
