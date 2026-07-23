@@ -469,10 +469,15 @@ reference would turn a change there into a build break in somebody's app rather 
 
 Building the 2.x façade turned up a set of gaps in those two repositories, including one that made
 iOS tracing unusable from C# outright — [`docs/upstream-changes.md`](docs/upstream-changes.md) is
-that list. The 3.x bindings already declare the OpenTracing protocols correctly, so no revision of
-our own is needed here; the remaining conveniences are carried as shims in
-`Platforms/*/NativeAttributes.cs` and the tracer adapters, each marked with the upstream member that
-would replace it.
+that list. As of `3.14.0.2` there are no shims left here: the per-value attribute converters, the
+session-id and header-injection adapters over Kotlin function interfaces, and the iOS trace-id
+reassembly all live in the binding repositories, where every consumer of them benefits rather than
+only this package. That is also why the pins are exact and why `3.14.0.2` will not build against
+binding revision `.1`.
+
+The three-repository review those changes came out of is
+[`docs/gap-analysis-3x.md`](docs/gap-analysis-3x.md) — measured coverage of both bindings against
+their native surface, what is missing, and what is missing *upstream* and cannot be bound at all.
 
 **Why the two-pass build.** Each .NET SDK's android/ios workloads ship reference packs for the
 current target framework and the previous one — the .NET 9 band builds net8 + net9, the .NET 10 band

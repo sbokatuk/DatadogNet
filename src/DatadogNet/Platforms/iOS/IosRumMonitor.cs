@@ -141,11 +141,11 @@ internal sealed class IosRumMonitor : IRumMonitor
     {
         ArgumentNullException.ThrowIfNull(value);
 
-        Monitor.AddFeatureFlagEvaluationWithName(name, NativeAttributes.Single(name, value));
+        Monitor.AddFeatureFlagEvaluationWithName(name, DatadogAttributes.ToNSObject(value, name));
     }
 
     public void AddAttribute(string key, object? value) =>
-        Monitor.AddAttributeForKey(key, NativeAttributes.Single(key, value));
+        Monitor.AddAttributeForKey(key, DatadogAttributes.ToNSObject(value, key));
 
     public void AddAttributes(IReadOnlyDictionary<string, object?> attributes)
     {
@@ -167,17 +167,9 @@ internal sealed class IosRumMonitor : IRumMonitor
 
     public void StopSession() => Monitor.StopSession();
 
-    public Task<string?> GetCurrentSessionIdAsync()
-    {
-        // TaskCreationOptions.RunContinuationsAsynchronously: the completion runs on whichever
-        // queue the SDK answers on, and a synchronous continuation would run the caller's
-        // await-resumption there too.
-        var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        Monitor.CurrentSessionIDWithCompletion(sessionId => completion.TrySetResult(sessionId?.ToString()));
-
-        return completion.Task;
-    }
+    // GetCurrentSessionIdAsync is DatadogNet.iOS's own member; the generated one answers through
+    // a completion block on the SDK's own queue.
+    public Task<string?> GetCurrentSessionIdAsync() => Monitor.GetCurrentSessionIdAsync();
 
     private static IReadOnlyDictionary<string, object?>? WithStatusCode(
         IReadOnlyDictionary<string, object?>? attributes,

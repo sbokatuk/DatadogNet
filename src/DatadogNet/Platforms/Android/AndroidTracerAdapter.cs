@@ -1,6 +1,13 @@
 using Com.Datadog.Android;
 using Com.Datadog.Android.Trace;
 
+// Propagation carries DatadogNet.Android's hand-written Inject(context, dictionary); Tracer carries
+// the generator's own IDatadogTracerExtensions, whose BuildSpan(string) saves wrapping the operation
+// name in a Java.Lang.String for the CharSequence the interface declares.
+using Com.Datadog.Android.Trace.Api.Propagation;
+using Com.Datadog.Android.Trace.Api.Span;
+using Com.Datadog.Android.Trace.Api.Tracer;
+
 // Both native interfaces collide with this façade's own names, which is a consequence of Datadog
 // having converged on the same vocabulary in 3.x. Aliased once here.
 using NativeScope = Com.Datadog.Android.Trace.Api.Scope.IDatadogScope;
@@ -39,8 +46,9 @@ internal sealed class AndroidTracerAdapter : IDatadogTracer
     {
         ArgumentNullException.ThrowIfNull(operationName);
 
-        // buildSpan takes a CharSequence in 3.x, and the binding generates no string overload.
-        var builder = GlobalDatadogTracer.Get()!.BuildSpan(new Java.Lang.String(operationName))!;
+        // BuildSpan(string) comes from the generator's IDatadogTracerExtensions. The interface
+        // itself declares CharSequence, so calling it directly needs a Java.Lang.String.
+        var builder = GlobalDatadogTracer.Get()!.BuildSpan(operationName)!;
 
         if ((parent ?? ActiveSpanTracker.Current) is AndroidSpan effectiveParent)
         {
@@ -86,37 +94,15 @@ internal sealed class AndroidTracerAdapter : IDatadogTracer
         // One call writes every header type the tracer was configured with - the formats are a
         // property of the tracer rather than of the writer, which is the reverse of iOS.
         //
-        // The setter is a Kotlin (C, String, String) -> Unit, which binds as IFunction3 and which C#
-        // cannot express as a lambda: it needs a real Java-callable object. 2.x had a different trap
-        // in the same place - TextMapInjectAdapter's carrier was marshalled by copy, so the SDK
-        // wrote the headers into a copy the caller never saw - and both end the same way, with a
-        // request going out untraced and nothing reported.
-        //
-        // The carrier is unused: this setter writes straight into the managed dictionary, so there
-        // is nothing for the SDK to hand back through it. It still has to be a real Java object -
-        // Java.Lang.Object's own constructor is protected - so an empty string stands in.
-        GlobalDatadogTracer.Get()!.Propagate()!.Inject(
-            context,
-            new Java.Lang.String(string.Empty),
-            new HeaderSetter(headers));
+        // Inject(context, dictionary) is DatadogNet.Android's own overload. The native setter is a
+        // Kotlin (C, String, String) -> Unit, which binds as IFunction3 and which C# cannot express
+        // as a lambda, so this used to need a Java.Lang.Object subclass here. 2.x had a different
+        // trap in the same place - TextMapInjectAdapter's carrier was marshalled by copy, so the
+        // SDK wrote the headers into a copy the caller never saw - and both ended the same way,
+        // with a request going out untraced and nothing reported.
+        GlobalDatadogTracer.Get()!.Propagate()!.Inject(context, headers);
 
         return headers;
-    }
-
-    /// <summary>Receives each injected header and puts it straight into a managed dictionary.</summary>
-    private sealed class HeaderSetter(IDictionary<string, string> headers)
-        : Java.Lang.Object, Kotlin.Jvm.Functions.IFunction3
-    {
-        public Java.Lang.Object? Invoke(Java.Lang.Object? carrier, Java.Lang.Object? key, Java.Lang.Object? value)
-        {
-            if (key?.ToString() is { } name && value?.ToString() is { } header)
-            {
-                headers[name] = header;
-            }
-
-            // Kotlin's Unit, which the binding maps to null for a Unit-returning lambda.
-            return null;
-        }
     }
 }
 
@@ -128,28 +114,19 @@ internal sealed class AndroidSpan(NativeSpan native) : IDatadogSpan
     internal NativeSpan Native { get; } = native;
 
     /// <remarks>
-    /// <c>ToHexString()</c> rather than <c>ToLong()</c>, which would silently return the low half of
-    /// a 128-bit id — and rather than any rendering of this façade's own choosing, because this is
-    /// the call dd-sdk-android's own <c>DatadogInterceptor</c> makes when it writes
-    /// <c>_dd.trace_id</c> onto a RUM resource. Matching it is what makes the correlation work.
+    /// <c>GetTraceId</c> and <c>GetSpanId</c> are DatadogNet.Android's own members, and they render
+    /// the ids the way dd-sdk-android's <c>DatadogInterceptor</c> does when it writes
+    /// <c>_dd.trace_id</c> and <c>_dd.span_id</c> onto a RUM resource: the trace id as 32 lowercase
+    /// hex characters, the span id as decimal. Matching that exactly is what makes the correlation
+    /// work, which is why neither is rendered here.
     /// <para>
-    /// iOS reassembles the same 32-character form by hand, for want of anything to call — see
-    /// <see cref="TraceIdentifiers"/>.
+    /// iOS reaches the same two strings through <c>OTSpanExtensions</c> in DatadogNet.iOS, which has
+    /// to reassemble them from injected headers because <c>OTSpanContext</c> exposes no ids at all.
     /// </para>
     /// </remarks>
-    public string TraceId => Context?.TraceId?.ToHexString() ?? string.Empty;
+    public string TraceId => Native.GetTraceId();
 
-    /// <remarks>
-    /// Decimal, and deliberately not hexadecimal like the trace id above it. The asymmetry is
-    /// Datadog's wire format: <c>DatadogInterceptor</c> writes <c>_dd.span_id</c> as
-    /// <c>String.valueOf(long)</c>. iOS's <c>x-datadog-parent-id</c> is already in this form.
-    /// </remarks>
-
-    public string SpanId => Context is { } context
-        ? context.SpanId.ToString(System.Globalization.CultureInfo.InvariantCulture)
-        : string.Empty;
-
-    private NativeSpanContext? Context => Native.Context();
+    public string SpanId => Native.GetSpanId();
 
     public void SetTag(string key, string value) => Native.SetTag(key, value);
 
@@ -157,29 +134,18 @@ internal sealed class AndroidSpan(NativeSpan native) : IDatadogSpan
 
     public void SetTag(string key, bool value) => Native.SetTag(key, value);
 
+    // SetError is DatadogNet.Android's own overload. In 2.x io.opentracing.Span had no setError at
+    // all, so this was an "error" tag plus four log fields written by convention here - and getting
+    // one field name wrong produced a span that looked fine and was never counted as an error.
     public void SetError(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        SetError(
-            exception.GetType().FullName ?? exception.GetType().Name,
-            exception.Message,
-            exception.ToString());
+        Native.SetError(exception);
     }
 
-    public void SetError(string kind, string message, string? stack = null)
-    {
-        // Real members in 3.x. In 2.x io.opentracing.Span had no setError at all, so this was an
-        // "error" tag plus four log fields by convention - and getting a field name wrong produced a
-        // span that looked fine and was never counted as an error.
-        Native.SetError(Java.Lang.Boolean.True!);
-        Native.SetErrorMessage($"{kind}: {message}");
-
-        if (stack is not null)
-        {
-            Native.LogErrorMessage(stack);
-        }
-    }
+    public void SetError(string kind, string message, string? stack = null) =>
+        Native.SetError(kind, message, stack);
 
     public void Log(IReadOnlyDictionary<string, object?> fields)
     {

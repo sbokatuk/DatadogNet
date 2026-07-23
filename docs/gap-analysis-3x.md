@@ -54,19 +54,16 @@ preferred one on iOS. From C# you get OpenTracing (`OTTracer`/`OTSpan`) and noth
 
 ### Improvements worth making
 
-1. **Restore the "API coverage" section to the README.** The 2.x README had one and it was the most
-   trustworthy thing in the document; the 3.x README dropped it. The numbers above are one script
-   away, and stating "Flags and Profiling have no ObjC surface — 15 and 2 Swift types respectively,
-   0 projected" is far stronger than "no C# API yet".
-2. **Make `DatadogAttributes.ToNSObject` public.** Still private in 3.x. Every consumer calling
-   `AddAttributeForKey`, `AddViewAttributeForKey` or `AddFeatureFlagEvaluationWithName` either
-   hand-wraps the value or round-trips a one-element dictionary. The façade does the latter today.
-3. **Add the tracing helpers** the façade currently shims: `GetTraceId()`/`GetSpanId()` (the only
-   route to the ids is injecting into a Datadog headers writer and parsing), `InjectHeaders()` (the
-   writer-is-also-the-carrier dance, one writer type per format), `SetError(Exception)` and
-   `Log(IReadOnlyDictionary)`.
-4. **Add `GetCurrentSessionIdAsync()`** on `DDRUMMonitor`, and single-value `AddAttribute` /
-   `AddFeatureFlagEvaluation` overloads.
+1. ~~**Restore the "API coverage" section to the README.**~~ *Done in 3.14.0.2* — with the measured
+   per-framework numbers, and the Swift-only gaps stated as "15 Swift types, 0 projected" rather
+   than "no C# API yet".
+2. ~~**Make `DatadogAttributes.ToNSObject` public.**~~ *Done in 3.14.0.2.*
+3. ~~**Add the tracing helpers** the façade shims:~~ *Done in 3.14.0.2* — `GetTraceId()`/`GetSpanId()`
+   (the only route to the ids is injecting into a Datadog headers writer and parsing),
+   `InjectHeaders()` (the writer-is-also-the-carrier dance, one writer type per format),
+   `SetError(Exception)` and `Log(IReadOnlyDictionary)`.
+4. ~~**Add `GetCurrentSessionIdAsync()`**~~ *Done in 3.14.0.2*, with single-value `AddAttribute`,
+   `AddViewAttribute` and `AddFeatureFlagEvaluation` overloads.
 5. **Consider dropping `DatadogNet.Flags.iOS` and `DatadogNet.Profiling.iOS`.** They ship a native
    payload that no C# code can call. Keeping them mirrors the SDK, which is a real argument — but a
    package a consumer can only waste bytes on deserves a louder warning than it has, or an
@@ -117,17 +114,25 @@ idiomatically, so this is a gap on paper only.
 
 ### Improvements worth making
 
-1. **The same four convenience additions** the 2.x branch got and 3.x has not: public
-   `DatadogAttributes.ToJava`, `GetCurrentSessionIdAsync` (still a `kotlin.jvm.functions.Function1`,
-   still inexpressible as a C# lambda), single-value `AddAttribute`/`AddFeatureFlagEvaluation`, and
-   `Logger.AddAttribute`.
-2. **A tracing injection helper.** `DatadogPropagation.Inject` takes a Kotlin
-   `(C, String, String) -> Unit` — `IFunction3`, no C# lambda form. Every consumer who wants
-   distributed tracing has to write the adapter the façade already carries. This is the single
-   highest-value addition on the Android side.
-3. **Document the unbound artifacts** in `packages.tsv`, in the same voice the `remove-node` rules
-   use. "Not bound, because it instruments Glide" is a complete answer; silence is not.
+1. ~~**The same four convenience additions** the 2.x branch got and 3.x has not~~ *Done in 3.12.1.2*:
+   public `DatadogAttributes.ToJava`, `GetCurrentSessionIdAsync`, single-value
+   `AddAttribute`/`AddFeatureFlagEvaluation`, and `Logger.AddAttribute`.
+2. ~~**A tracing injection helper.**~~ *Done in 3.12.1.2.* `DatadogPropagation.Inject` takes a Kotlin
+   `(C, String, String) -> Unit` — `IFunction3`, no C# lambda form — so every consumer who wanted
+   distributed tracing had to write the adapter the façade carried. Now
+   `Inject(context, dictionary)`, plus a delegate-taking overload for non-dictionary carriers, and
+   `SetError(Exception)` / `GetTraceId()` / `GetSpanId()` on the span.
+3. ~~**Document the unbound artifacts** in `packages.tsv`~~ *Done in 3.12.1.2* — all fourteen, with
+   a reason each.
 4. **Consider `-compose` and `-tv`** if either audience is real.
+
+**A correction to this analysis.** It claimed `BuildSpan` needed a `string` overload, because the 3.x
+interface declares `CharSequence` and the façade was writing `BuildSpan(new Java.Lang.String(name))`.
+That was wrong: the generator already emits `IDatadogTracerExtensions.BuildSpan(IDatadogTracer,
+string)` in the same namespace, and adding another made the call ambiguous. The façade's workaround
+was unnecessary all along — it simply never imported the namespace the generated extension lives in.
+The lesson generalises: before adding a convenience member, check the generated `*Extensions` class,
+which is where the generator puts the friendly forms of interface default methods.
 
 ---
 
