@@ -84,8 +84,9 @@ Most apps need one or two lines:
 ```
 
 **Target frameworks.** `DatadogNet`, `DatadogNet.CrashReporting` and `DatadogNet.WebView` ship
-`net9.0`, `net9.0-android35.0`, `net9.0-ios18.0`, `net10.0`, `net10.0-android36.0` and
-`net10.0-ios26.0`. `DatadogNet.Maui` ships the four platform ones only.
+nine: `net8.0`, `net9.0` and `net10.0`, each with its `-android` and `-ios` head —
+`net8.0-android34.0`, `net8.0-ios18.0`, `net9.0-android35.0`, `net9.0-ios18.0`,
+`net10.0-android36.0`, `net10.0-ios26.0`. `DatadogNet.Maui` ships the six platform ones only.
 
 The plain `net9.0`/`net10.0` assets are not padding. A MAUI app routinely also has a Windows or Mac
 Catalyst head, and NuGet resolves each head independently; without a platform-neutral asset the
@@ -104,16 +105,34 @@ A multi-headed app guards that one reference:
 </ItemGroup>
 ```
 
-**net8 is deliberately absent**, and this is the one place the façade's target set is narrower than
-the packages it wraps. MAUI 8 is out of support, and `DatadogNet.Android`'s own README records that
-MAUI 9 cannot build against the AndroidX generation those packages depend on — a plain MAUI 9 app
-with nothing but `Xamarin.AndroidX.AppCompat 1.7.1.1` added, and no Datadog package anywhere, fails
-generating Java callable wrappers. Shipping a net8 asset would mean NuGet selecting it for a net8
-consumer and then failing at build time with a less obvious error than "no compatible assets". A
-plain .NET Android or .NET iOS app on net8 can still consume `DatadogNet.Android` and
-`DatadogNet.iOS` directly.
+> **net8 has one limitation, and it is worth reading before you rely on it.** The net8 assets work
+> — the device checks run against them on both a simulator and an emulator — but a .NET **MAUI** app
+> on net8 does not build, and no target-framework choice here can change that. Pointing the sample at
+> `net8.0-android34.0` fails during Java callable wrapper generation:
+>
+> ```
+> error XA4204: Unable to resolve interface type
+> 'AndroidX.Navigation.NavController/IOnDestinationChangedListener'
+> ```
+>
+> MAUI 8 resolves as **8.0.100** — the original November 2023 release, since no serviced MAUI 8
+> exists in any installed workload band — and its AndroidX generation does not line up with the one
+> the Datadog Android bindings require. It is the same class of failure `DatadogNet.Android`'s README
+> records for MAUI 9, one version earlier and with a different symptom. MAUI 8 also reached
+> [end of support on 14 May 2025](https://dotnet.microsoft.com/en-us/platform/support/policy/maui).
+>
+> So net8 is for a **plain .NET Android or .NET iOS app** — one with no MAUI — which is also what
+> `DatadogNet.Android`'s and `DatadogNet.iOS`'s own net8 support is for. `DatadogNet.Maui` ships net8
+> for uniformity, so that a net8 MAUI app fails with the Android SDK error above rather than a
+> restore error blaming the wrong package, but it cannot be used from one. For MAUI, target net9 or
+> net10.
 
-**Minimum OS**: Android API **21**, iOS **12.2**.
+**Minimum OS**: Android API **23**, iOS **12.2**.
+
+> The dd-sdk-android `.aar` manifests declare API 21, and `DatadogNet.Android`'s README records
+> that as the floor. It is not reachable: those `.aar`s depend on an AndroidX generation in which
+> `androidx.savedstate` declares `minSdkVersion 23`, and the manifest merger takes the maximum
+> across the graph — so an app declaring 21 fails to build. 23 is the real floor.
 
 ---
 
@@ -126,7 +145,7 @@ plain .NET Android or .NET iOS app on net8 can still consume `DatadogNet.Android
 ```
 
 ```xml
-<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21</SupportedOSPlatformVersion>
+<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23</SupportedOSPlatformVersion>
 <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">12.2</SupportedOSPlatformVersion>
 ```
 
@@ -392,15 +411,18 @@ same order, apart from the middle image level above.
 > **This is the 2.x line of both SDKs, and that is not merely "older".** dd-sdk 3.0 removed
 > OpenTracing on both platforms, and dd-sdk-ios 3.0 deleted the `DatadogObjc` façade this repository's
 > iOS head is written against and replaced PLCrashReporter with KSCrash. Moving to 3.x is a rewrite
-> of both platform layers, not a version bump. In exchange, 2.x keeps Android API 21 as its floor;
-> dd-sdk-android 3.0 raised it to 23.
+> of both platform layers, not a version bump.
+>
+> The usual argument for staying on 2.x — that it keeps Android API 21 as its floor, where 3.0
+> raised it to 23 — does not actually hold: the AndroidX generation 2.x's `.aar`s depend on forces
+> 23 anyway. See [Packages](#packages). The other reasons still do.
 
 ---
 
 ## How this repository works
 
 ```
-nuget.org: DatadogNet.iOS 2.30.2.1        nuget.org: DatadogNet.Android 2.26.3.1
+nuget.org: DatadogNet.iOS 2.30.2.2        nuget.org: DatadogNet.Android 2.26.3.1
         │  (dd-sdk-ios 2.30.2)                    │  (dd-sdk-android 2.26.3)
         └──────────────┬──────────────────────────┘
                        ▼
@@ -418,6 +440,11 @@ nuget.org, pinned to an exact version rather than a range. They are pinned becau
 into the hand-written convenience APIs in both repositories — `RumMonitorExtensions`,
 `DDRUMMonitor.Ergonomics` and friends — which no compatibility promise covers, and a floating
 reference would turn a change there into a build break in somebody's app rather than here.
+
+Building this façade also turned up a set of gaps in those two repositories, including one that made
+iOS tracing unusable from C# outright. They were fixed there rather than worked around here —
+[`docs/upstream-changes.md`](docs/upstream-changes.md) is the list and the reasoning. It is why the
+iOS pin is `2.30.2.2`.
 
 **Why the two-pass build.** Each .NET SDK's android/ios workloads ship reference packs for the
 current target framework and the previous one — the .NET 9 band builds net8 + net9, the .NET 10 band
@@ -450,28 +477,43 @@ compile for both heads.
 ## Building locally
 
 Requires macOS, Xcode, and the .NET 9 and .NET 10 SDKs with the `android`, `ios` and `maui`
-workloads, plus the Android SDK with platforms 35 and 36.
+workloads, plus the Android SDK with platforms 34, 35 and 36. The .NET 9 band builds net8 and net9;
+the .NET 10 band builds net10.
 
 ```bash
 ./build/BuildNugets.sh
 dotnet test tests/DatadogNet.PackageTests
 ```
 
+> **Until `DatadogNet.iOS 2.30.2.2` is on nuget.org**, restore needs it in the local `artifacts/`
+> feed: build it from the `maui-facade-improvements` branch of that repository and copy the packages
+> across. It is pinned because 2.30.2.1 cannot trace at all — see
+> [`docs/upstream-changes.md`](docs/upstream-changes.md).
+
 Run the device checks against the packed packages:
 
 ```bash
-./.github/scripts/run-simulator-tests.sh 2.30.2.1 net9.0-ios18.0
+./.github/scripts/run-simulator-tests.sh 2.30.2.1 net8.0-ios18.0
 ```
 
 ```bash
-./.github/scripts/run-emulator-tests.sh 2.30.2.1 net9.0-android35.0
+./.github/scripts/run-emulator-tests.sh 2.30.2.1 net8.0-android34.0
 ```
+
+Any of the six platform target frameworks works. CI runs net8 and net10 — the oldest asset set, and
+the one the merge step produces — and skips net9, which shares a pack pass with net8.
 
 Build and run the sample:
 
 ```bash
-dotnet build samples/DatadogNet.Maui.Sample/DatadogNet.Maui.Sample.csproj -f net9.0-ios18.0 -t:Run
+cd /tmp && dotnet new globaljson --sdk-version 10.0.301 --force
+dotnet build <repo>/samples/DatadogNet.Maui.Sample/DatadogNet.Maui.Sample.csproj -f net10.0-ios26.0 -t:Run
 ```
+
+> The sample targets the net10 band only, and this repository's `global.json` pins .NET 9 — hence
+> the scratch directory. That is a constraint on the MAUI version you build the *sample* with, not
+> on what the packages support: MAUI 9 cannot build against the AndroidX generation the Datadog
+> Android bindings depend on, and it is an SDK defect rather than anything the bindings do.
 
 > Anything targeting `net10.0-ios26.0` needs an Xcode carrying the iOS 26 SDK; .NET for iOS refuses
 > a mismatch outright. CI handles this with the

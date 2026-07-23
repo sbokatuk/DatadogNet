@@ -24,14 +24,17 @@ public static class Packages
     /// The target frameworks a package with <c>all</c> heads must carry an assembly for.
     /// </summary>
     /// <remarks>
-    /// The neutral <c>net9.0</c> and <c>net10.0</c> entries are the ones worth asserting hardest.
-    /// They are what lets a MAUI app's Windows head, and a unit test, restore the package at all,
-    /// and nothing about the build would fail if the platform-neutral pass silently stopped
-    /// producing them — the platform assets would still be there and the package would still look
-    /// complete.
+    /// The neutral <c>net8.0</c>, <c>net9.0</c> and <c>net10.0</c> entries are the ones worth
+    /// asserting hardest. They are what lets a MAUI app's Windows head, and a unit test, restore the
+    /// package at all, and nothing about the build would fail if the platform-neutral pass silently
+    /// stopped producing them — the platform assets would still be there and the package would still
+    /// look complete.
     /// </remarks>
     public static readonly string[] AllHeadTargetFrameworks =
     [
+        "net8.0",
+        "net8.0-android34.0",
+        "net8.0-ios18.0",
         "net9.0",
         "net9.0-android35.0",
         "net9.0-ios18.0",
@@ -43,6 +46,8 @@ public static class Packages
     /// <summary>The target frameworks a package with <c>mobile</c> heads must carry.</summary>
     public static readonly string[] MobileHeadTargetFrameworks =
     [
+        "net8.0-android34.0",
+        "net8.0-ios18.0",
         "net9.0-android35.0",
         "net9.0-ios18.0",
         "net10.0-android36.0",

@@ -375,3 +375,7 @@ artifacts/*.nupkg
 artifacts/*.snupkg
 artifacts/.net9-pass/
 artifacts/.net10-pass/
+
+# Device-test logs, written by the runner scripts
+simulator-tests.log
+emulator-tests.log

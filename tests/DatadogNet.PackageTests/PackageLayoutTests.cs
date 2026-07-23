@@ -42,9 +42,8 @@ public class PackageLayoutTests
             .Select(parts => parts[1])
             .ToHashSet();
 
-        // net8 in particular: the two binding repositories ship it and this one deliberately does
-        // not, so an asset appearing here would mean someone widened the target set without
-        // reading why it is narrow.
+        // Equality, not containment, in both directions: a target framework silently disappearing
+        // from the merge step is as bad as one appearing that nothing was built or tested for.
         Assert.Equal(expected.OrderBy(tfm => tfm), actual.OrderBy(tfm => tfm));
     }
 
@@ -151,7 +150,7 @@ public class PackageLayoutTests
 
         var groups = DependencyGroups(Packages.ReadNuspec(package, "DatadogNet"));
 
-        foreach (var tfm in new[] { "net9.0", "net10.0" })
+        foreach (var tfm in new[] { "net8.0", "net9.0", "net10.0" })
         {
             // The whole point of the neutral asset is that a Windows or Mac Catalyst head can
             // restore it. A stray android or ios binding dependency would make that fail with

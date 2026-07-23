@@ -9,14 +9,14 @@
 #
 # Columns
 #   id      the NuGet package id, which is also the directory under src/ and the .csproj name
-#   heads   which target-framework families the package ships:
-#             all     - neutral (net9.0/net10.0) + android + ios
-#             mobile  - android + ios only
+#   heads   which target-framework families the package ships, across net8, net9 and net10:
+#             all     - the platform-neutral asset of each, plus its android and ios heads (nine)
+#             mobile  - android and ios heads only (six)
 #   deps    other ids in this repository it depends on, comma separated, or -
 #
 # DatadogNet.Maui is 'mobile' because Microsoft.Maui.Controls is a workload metapackage with no
-# platform-neutral assets - there is nothing to compile a net9.0 no-op MAUI shim against, and
-# net9.0-windows cannot be built on this repository's runners. See the comment in its .csproj.
+# platform-neutral assets - there is nothing to compile a no-op MAUI shim against at any version -
+# and net*-windows cannot be built on this repository's runners. See the comment in its .csproj.
 #
 # id	heads	deps
 DatadogNet	all	-

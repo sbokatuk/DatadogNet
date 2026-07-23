@@ -8,9 +8,13 @@
       differs from DatadogNet, and it is not a choice.
 
       Microsoft.Maui.Controls is a metapackage with no lib/ assets: the reference assemblies come
-      from the installed MAUI workload, selected by target platform. There is no net9.0 flavour of
-      MAUI to compile a neutral no-op against, and net9.0-windows can only be built on Windows,
-      which this repository's CI is not.
+      from the installed MAUI workload, selected by target platform. There is no platform-neutral
+      flavour of MAUI at any version to compile a no-op against, and net*-windows can only be built
+      on Windows, which this repository's CI is not.
+
+      The net8 heads build - MAUI 8.0.100 resolves from nuget.org - but a net8 MAUI *app* does not.
+      They ship anyway so that such an app fails with the Android SDK's own error rather than a
+      restore error blaming this package. See Directory.Build.props.
 
       So a MAUI app with a Windows or Mac Catalyst head guards this one reference by platform,
       exactly as the DatadogNet.iOS and DatadogNet.Android READMEs describe for the bindings

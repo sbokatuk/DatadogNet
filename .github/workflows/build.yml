@@ -12,18 +12,20 @@ on:
         description: NuGet version to stamp on every package.
         required: true
         type: string
-      e2e-ios-target-framework:
+      e2e-ios-target-frameworks:
         description: >
-          Which of the packages' target frameworks the simulator checks run against. Defaults to
-          net10, whose assets are produced by the merge step in BuildNugets.sh and so are the ones
-          worth proving at runtime.
+          Which of the packages' target frameworks the simulator checks run against, as a JSON
+          array. Defaults to the two extremes: net8, the oldest asset set and the one nothing else
+          exercises, and net10, whose assets are produced by the merge step in BuildNugets.sh and so
+          are the only ones that could be grafted in wrong. net9 sits between them and comes out of
+          the same pack pass as net8, so testing it too would buy little for the runner minutes.
         required: false
-        default: net10.0-ios26.0
+        default: '["net8.0-ios18.0", "net10.0-ios26.0"]'
         type: string
-      e2e-android-target-framework:
+      e2e-android-target-frameworks:
         description: Same, for the emulator checks.
         required: false
-        default: net10.0-android36.0
+        default: '["net8.0-android34.0", "net10.0-android36.0"]'
         type: string
       e2e-api-level:
         description: Android API level the emulator boots.
@@ -89,7 +91,7 @@ jobs:
       - name: Set up the Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-35 platforms;android-36'
+          packages: 'platforms;android-34 platforms;android-35 platforms;android-36'
 
       - name: Pack all packages
         run: ./build/BuildNugets.sh "${{ inputs.version }}"
@@ -119,10 +121,16 @@ jobs:
           retention-days: 7
 
   e2e-ios:
-    name: simulator checks
+    name: simulator checks (${{ matrix.target-framework }})
     timeout-minutes: 45
     needs: pack
     runs-on: macos-15
+    strategy:
+      # fail-fast off: when one target framework breaks it is worth knowing whether the other did
+      # too, since "net8 only" and "both" point at very different causes.
+      fail-fast: false
+      matrix:
+        target-framework: ${{ fromJSON(inputs.e2e-ios-target-frameworks) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -153,21 +161,25 @@ jobs:
           path: artifacts
 
       - name: Run checks on simulator
-        run: ./.github/scripts/run-simulator-tests.sh "${{ inputs.version }}" "${{ inputs.e2e-ios-target-framework }}"
+        run: ./.github/scripts/run-simulator-tests.sh "${{ inputs.version }}" "${{ matrix.target-framework }}"
 
       - name: Upload simulator logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: simulator-test-logs
+          name: simulator-test-logs-${{ matrix.target-framework }}
           path: simulator-tests.log
           if-no-files-found: ignore
           retention-days: 7
 
   e2e-android:
-    name: emulator checks
+    name: emulator checks (${{ matrix.target-framework }})
     timeout-minutes: 60
     needs: pack
+    strategy:
+      fail-fast: false
+      matrix:
+        target-framework: ${{ fromJSON(inputs.e2e-android-target-frameworks) }}
     # Linux, unlike the pack job: the emulator needs KVM, which the macOS runners do not have, and
     # the Android head of the device app needs no Apple toolchain to build.
     runs-on: ubuntu-latest
@@ -192,7 +204,7 @@ jobs:
       - name: Set up the Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-35 platforms;android-36'
+          packages: 'platforms;android-34 platforms;android-35 platforms;android-36'
 
       - name: Download packages
         uses: actions/download-artifact@v4
@@ -218,13 +230,13 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
-          script: ./.github/scripts/run-emulator-tests.sh "${{ inputs.version }}" "${{ inputs.e2e-android-target-framework }}"
+          script: ./.github/scripts/run-emulator-tests.sh "${{ inputs.version }}" "${{ matrix.target-framework }}"
 
       - name: Upload emulator logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: emulator-test-logs
+          name: emulator-test-logs-${{ matrix.target-framework }}
           path: emulator-tests.log
           if-no-files-found: ignore
           retention-days: 7

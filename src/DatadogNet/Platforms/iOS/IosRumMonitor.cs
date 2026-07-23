@@ -105,10 +105,12 @@ internal sealed class IosRumMonitor : IRumMonitor
         string? stack = null,
         IReadOnlyDictionary<string, object?>? attributes = null)
     {
-        // The bound overloads take an NSURLResponse to carry the status code, and there is no
-        // overload that takes a bare status code - so a status code with no response object has
-        // nowhere to go but the attributes. Under Datadog's own reserved name, so it still renders
-        // as the resource's status rather than as a stray custom attribute.
+        // dd-sdk-ios carries the status code on an NSURLResponse, and there is no overload taking a
+        // bare status code - so with no response object the value can only go on as a custom
+        // attribute. It is *not* the typed resource.status_code field, and will not facet like one;
+        // dd-sdk-android does take the code directly, so this is a real asymmetry rather than a
+        // choice. Passing the response through would need the handler to keep NSURLResponse objects
+        // it does not have.
         var payload = WithStatusCode(attributes, statusCode);
 
         Monitor.StopResourceWithErrorWithResourceKey(key, message, response: null, DatadogAttributes.From(payload));
@@ -191,7 +193,7 @@ internal sealed class IosRumMonitor : IRumMonitor
             }
         }
 
-        merged["resource.status_code"] = code;
+        merged["http.status_code"] = code;
         return merged;
     }
 

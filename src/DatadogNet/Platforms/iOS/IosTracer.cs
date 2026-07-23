@@ -10,6 +10,12 @@ namespace DatadogNet;
 /// <see cref="IDatadogSpan"/> can be one interface rather than two shapes glued together, and it is
 /// specific to the 2.x line — 3.0 removed OpenTracing on both platforms in favour of an
 /// OpenTelemetry-shaped API.
+/// <para>
+/// Requires <c>DatadogNet.iOS 2.30.2.2</c> or later. In 2.30.2.1 the OpenTracing protocols were
+/// bound as classes rather than interfaces, so <c>DDTracer.Shared</c> — the only way to reach a
+/// tracer — threw <see cref="InvalidCastException"/> on first use. See
+/// <c>docs/upstream-changes.md</c>.
+/// </para>
 /// </remarks>
 internal sealed class IosTracer : IDatadogTracer
 {
@@ -35,123 +41,44 @@ internal sealed class IosTracer : IDatadogTracer
     {
         ArgumentNullException.ThrowIfNull(span);
 
-        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
         if (span is not IosSpan native || Datadog.Configuration?.Trace is not { } options)
         {
-            return headers;
+            return new Dictionary<string, string>();
         }
 
-        // One writer per format. dd-sdk-ios has no writer that emits several formats at once -
-        // unlike Android, where the header types are a property of the tracer and a single inject
-        // call writes all of them - so the formats are looped here and the results merged.
-        foreach (var type in options.HeaderTypes)
-        {
-            foreach (var field in InjectOne(native, type))
-            {
-                headers[field.Key] = field.Value;
-            }
-        }
-
-        return headers;
+        // The writer-as-carrier dance - a different writer type per format, each also being where
+        // the result is read back from - lives in DatadogNet.iOS's TracingExtensions rather than
+        // here, so a plain .NET iOS app gets it too.
+        return DDTracer.Shared.InjectHeaders(native.Native, [.. options.HeaderTypes.Select(ToNativeFormat)]);
     }
 
-    /// <summary>Injects one header format and reads back what the writer produced.</summary>
-    /// <remarks>
-    /// <c>HeadBased</c> sampling because the keep-or-drop decision was made when the trace started;
-    /// deciding it again per writer would propagate "sampled" in one format and "dropped" in
-    /// another on the same request. <c>TraceContextInjection.All</c> so the headers still go out for
-    /// a dropped trace, which is what lets the receiving service stitch the request together even
-    /// when nothing is stored.
-    /// </remarks>
-    internal static IEnumerable<KeyValuePair<string, string>> InjectOne(IosSpan span, TracingHeaderType type)
+    internal static TracingHeaderFormat ToNativeFormat(TracingHeaderType type) => type switch
     {
-        NSObject writer;
-        NSDictionary<NSString, NSString> fields;
-
-        switch (type)
-        {
-            case TracingHeaderType.Datadog:
-                var datadog = new DDHTTPHeadersWriter(DDTraceSamplingStrategy.HeadBased, DDTraceContextInjection.All);
-                writer = datadog;
-                DDTracer.Shared.Inject(span.Native.Context, OT.FormatTextMap, writer, out _);
-                fields = datadog.TraceHeaderFields;
-                break;
-
-            case TracingHeaderType.TraceContext:
-                var w3c = new DDW3CHTTPHeadersWriter(DDTraceSamplingStrategy.HeadBased, DDTraceContextInjection.All);
-                writer = w3c;
-                DDTracer.Shared.Inject(span.Native.Context, OT.FormatTextMap, writer, out _);
-                fields = w3c.TraceHeaderFields;
-                break;
-
-            case TracingHeaderType.B3:
-            case TracingHeaderType.B3Multi:
-                var b3 = new DDB3HTTPHeadersWriter(
-                    DDTraceSamplingStrategy.HeadBased,
-                    type == TracingHeaderType.B3 ? DDInjectEncoding.Single : DDInjectEncoding.Multiple,
-                    DDTraceContextInjection.All);
-                writer = b3;
-                DDTracer.Shared.Inject(span.Native.Context, OT.FormatTextMap, writer, out _);
-                fields = b3.TraceHeaderFields;
-                break;
-
-            default:
-                yield break;
-        }
-
-        foreach (var key in fields.Keys)
-        {
-            yield return new KeyValuePair<string, string>(key.ToString(), fields[key].ToString());
-        }
-    }
+        TracingHeaderType.B3 => TracingHeaderFormat.B3,
+        TracingHeaderType.B3Multi => TracingHeaderFormat.B3Multi,
+        TracingHeaderType.TraceContext => TracingHeaderFormat.TraceContext,
+        _ => TracingHeaderFormat.Datadog,
+    };
 }
 
 /// <summary>A span over <c>OTSpan</c>.</summary>
-internal sealed class IosSpan(OTSpan native) : IDatadogSpan
+internal sealed class IosSpan(IOTSpan native) : IDatadogSpan
 {
-    /// <summary>
-    /// The Datadog-format header names the trace and span ids are read out of.
-    /// </summary>
-    /// <remarks>
-    /// dd-sdk-ios's <c>OTSpanContext</c> declares nothing but <c>forEachBaggageItem</c> — there is
-    /// no <c>traceID</c> or <c>spanID</c> to read, on the protocol or on any bound type. Injecting
-    /// into a Datadog-format writer and parsing what comes out is the only route to them from
-    /// Objective-C, and these two headers are where they land.
-    /// <para>
-    /// dd-sdk-android has the ids directly, on <c>SpanContext.toTraceId()</c> and
-    /// <c>toSpanId()</c>, so this asymmetry is the iOS SDK's rather than the binding's. It is what
-    /// <c>DatadogHttpMessageHandler</c> needs to write <c>_dd.trace_id</c> onto a RUM resource, and
-    /// so is what links a RUM resource to its APM trace.
-    /// </para>
-    /// </remarks>
-    private const string TraceIdHeader = "x-datadog-trace-id";
-
-    private const string SpanIdHeader = "x-datadog-parent-id";
-
     private string? traceId;
     private string? spanId;
     private bool finished;
 
-    internal OTSpan Native { get; } = native;
+    internal IOTSpan Native { get; } = native;
 
-    public string TraceId
-    {
-        get
-        {
-            EnsureIds();
-            return traceId ?? string.Empty;
-        }
-    }
+    /// <remarks>
+    /// Cached because it is not free: dd-sdk-ios's <c>OTSpanContext</c> declares nothing but
+    /// <c>forEachBaggageItem</c>, so the ids are derived by injecting into a Datadog-format writer
+    /// and parsing the result. dd-sdk-android has them directly, on <c>SpanContext.toTraceId()</c>.
+    /// </remarks>
+    public string TraceId => traceId ??= Native.GetTraceId();
 
-    public string SpanId
-    {
-        get
-        {
-            EnsureIds();
-            return spanId ?? string.Empty;
-        }
-    }
+    /// <inheritdoc cref="TraceId"/>
+    public string SpanId => spanId ??= Native.GetSpanId();
 
     public void SetTag(string key, string value) => Native.SetTag(key, value);
 
@@ -163,10 +90,7 @@ internal sealed class IosSpan(OTSpan native) : IDatadogSpan
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        Native.SetErrorWithKind(
-            exception.GetType().FullName ?? exception.GetType().Name,
-            exception.Message,
-            exception.StackTrace);
+        Native.SetError(exception);
     }
 
     public void SetError(string kind, string message, string? stack = null) =>
@@ -176,7 +100,7 @@ internal sealed class IosSpan(OTSpan native) : IDatadogSpan
     {
         ArgumentNullException.ThrowIfNull(fields);
 
-        Native.Log(DatadogAttributes.From(fields));
+        Native.Log(fields);
     }
 
     public IDisposable Activate()
@@ -199,7 +123,8 @@ internal sealed class IosSpan(OTSpan native) : IDatadogSpan
 
         // Read before finishing: injecting into a finished span's context is not something the SDK
         // promises to answer, and the ids are what a caller most often wants after the fact.
-        EnsureIds();
+        _ = TraceId;
+        _ = SpanId;
 
         finished = true;
         ActiveSpanTracker.Finished(this);
@@ -207,27 +132,4 @@ internal sealed class IosSpan(OTSpan native) : IDatadogSpan
     }
 
     public void Dispose() => Finish();
-
-    private void EnsureIds()
-    {
-        if (traceId is not null)
-        {
-            return;
-        }
-
-        traceId = string.Empty;
-        spanId = string.Empty;
-
-        foreach (var field in IosTracer.InjectOne(this, TracingHeaderType.Datadog))
-        {
-            if (field.Key.Equals(TraceIdHeader, StringComparison.OrdinalIgnoreCase))
-            {
-                traceId = field.Value;
-            }
-            else if (field.Key.Equals(SpanIdHeader, StringComparison.OrdinalIgnoreCase))
-            {
-                spanId = field.Value;
-            }
-        }
-    }
 }

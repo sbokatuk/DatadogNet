@@ -1,6 +1,5 @@
 using DatadogNet;
 using DatadogNet.Maui;
-using Microsoft.Extensions.Logging;
 
 namespace DatadogNet.Maui.Sample;
 
@@ -107,6 +106,9 @@ public static class MauiProgram
                     {
                         Name = "sample",
                         NetworkInfoEnabled = true,
+                        // Also to logcat / the Xcode console, so the sample's logs are visible
+                        // without a Datadog account. This is the SDK's own console output, which is
+                        // why the sample needs no separate logging provider for it.
                         PrintToConsole = true,
                     },
                 });
@@ -124,10 +126,6 @@ public static class MauiProgram
             .AddDatadogTracking();
 
         builder.Services.AddTransient<MainPage>();
-
-#if DEBUG
-        builder.Logging.AddDebug();
-#endif
 
         return builder.Build();
     }

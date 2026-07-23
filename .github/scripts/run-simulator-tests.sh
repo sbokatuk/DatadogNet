@@ -56,13 +56,24 @@ rm -rf "${REPO_ROOT}/tests/DatadogNet.DeviceTests/obj" \
        "${REPO_ROOT}/tests/DatadogNet.DeviceTests/bin"
 
 echo "==> building device tests (version=${VERSION}, tfm=${TARGET_FRAMEWORK}, sdk=${sdk_version})"
+# Debug, not Release - the same call the Android runner makes, and for the same reason. A Release
+# build AOT-compiles every assembly in the app, which for this suite means ten minutes of
+# mono-aot-cross on several hundred BCL assemblies before the first check runs, and which fails
+# outright under memory pressure:
+#
+#     error : Failed to AOT compile System.Reflection.Emit.ILGeneration.dll,
+#             the AOT compiler exited with code 134
+#
+# Nothing is lost. This suite verifies that the packages carry their xcframeworks, that the native
+# SDK loads, and that the façade drives it correctly - none of which AOT affects. The sample job
+# builds a real MAUI app against the same packages and covers the Release path.
 ( cd "${SDK_DIR}" && dotnet build "${PROJECT}" \
-    --configuration Release \
+    --configuration Debug \
     -p:DatadogPackageVersion="${VERSION}" \
     -p:DatadogDeviceTargetFramework="${TARGET_FRAMEWORK}" \
     -p:RuntimeIdentifier="${SIMULATOR_RID}" )
 
-APP_PATH="$(find "${REPO_ROOT}/tests/DatadogNet.DeviceTests/bin/Release/${TARGET_FRAMEWORK}/${SIMULATOR_RID}" \
+APP_PATH="$(find "${REPO_ROOT}/tests/DatadogNet.DeviceTests/bin/Debug/${TARGET_FRAMEWORK}/${SIMULATOR_RID}" \
     -maxdepth 1 -name '*.app' -print -quit)"
 if [ -z "${APP_PATH}" ]; then
     echo "::error::no .app bundle was produced"

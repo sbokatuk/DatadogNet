@@ -8,7 +8,7 @@
       This repository binds nothing itself. It is a cross-platform façade over two independently
       versioned package sets:
 
-        DatadogNet.iOS      2.30.2.1   -> dd-sdk-ios     2.30.2
+        DatadogNet.iOS      2.30.2.2   -> dd-sdk-ios     2.30.2
         DatadogNet.Android  2.26.3.1   -> dd-sdk-android 2.26.3
 
       Those two never move in lock-step: Datadog releases the iOS and Android SDKs on separate
@@ -36,41 +36,58 @@
       repositories (RumMonitorExtensions, DDRUMMonitor.Ergonomics and friends), which are not
       covered by any compatibility promise, and a floating reference would turn a change there into
       a build break in somebody's app rather than here.
+
+      The iOS pin is 2.30.2.2 rather than .1 because .1 cannot trace at all: DDTracer.Shared throws
+      InvalidCastException on first use, and it is the only way to reach a tracer. The Android pin
+      stays at 2.26.3.1 - the improvements made there alongside it are conveniences this repository
+      can do without, so requiring a rebuild for them would be gratuitous. See
+      docs/upstream-changes.md.
     -->
-    <DatadogNetiOSVersion>2.30.2.1</DatadogNetiOSVersion>
+    <DatadogNetiOSVersion>2.30.2.2</DatadogNetiOSVersion>
     <DatadogNetAndroidVersion>2.26.3.1</DatadogNetAndroidVersion>
     <DatadogAndroidNativeVersion>2.26.3</DatadogAndroidNativeVersion>
   </PropertyGroup>
 
   <!--
-    Target frameworks, in two bands.
+    Target frameworks: net8, net9 and net10, in two pack passes.
 
     Each .NET SDK's android/ios workloads ship reference packs for the current target framework and
     the previous one - the .NET 9 band builds net8 + net9, the .NET 10 band builds net9 + net10 -
     so no single SDK builds all three. BuildNugets.sh packs twice and merge-packages.py grafts the
     net10 assets into the net9 packages, exactly as both platform repositories do.
 
-    net8 is deliberately absent, and this is the one place the façade's target set is narrower than
-    the packages it wraps.
+    net8 therefore comes out of the same pass as net9 - that band's android/ios workloads carry both
+    reference packs - so it costs no extra pack pass. The three target-framework versions are the
+    ones both platform binding package sets ship, and the façade matches them.
 
-      - MAUI 8 is out of support.
-      - DatadogNet.Android's own README records that MAUI 9 cannot build against the AndroidX
-        generation those packages depend on: a plain MAUI 9 app with nothing but
-        Xamarin.AndroidX.AppCompat 1.7.1.1 added, and no Datadog package anywhere, fails generating
-        Java callable wrappers. That is an SDK defect rather than anything the bindings do, and it
-        makes net8-era MAUI a target nobody could actually ship on.
-      - A net8 asset would still be selected by NuGet for a net8 consumer and then fail at build
-        time with a less obvious error than "no compatible assets".
+    ONE KNOWN LIMITATION, measured rather than assumed. A .NET *MAUI* app on net8 does not build,
+    and no target-framework choice here can fix it. Pointing the sample at net8.0-android34.0 fails
+    during Java callable wrapper generation:
 
-    A plain .NET Android or .NET iOS app on net8 can still consume DatadogNet.Android /
-    DatadogNet.iOS directly, which is what those packages keeping net8 is for.
+        error XA4204: Unable to resolve interface type
+        'AndroidX.Navigation.NavController/IOnDestinationChangedListener'
+
+    MAUI 8 resolves as 8.0.100 - the original November 2023 release, since no serviced MAUI 8 exists
+    in any installed workload band, and MAUI 8 reached end of support on 14 May 2025 - and its
+    AndroidX generation does not line up with the one the Datadog Android bindings require. It is
+    the same class of failure DatadogNet.Android's README records for MAUI 9, one version earlier
+    and with a different symptom.
+
+    So the net8 assets are for a plain .NET Android or .NET iOS app - one with no MAUI - which is
+    also what DatadogNet.Android's and DatadogNet.iOS's own net8 support is for. DatadogNet.Maui
+    ships net8 too, for uniformity and so that a net8 MAUI app fails with a comprehensible Android
+    SDK error rather than a restore error blaming the wrong thing, but it cannot be used from one
+    until MAUI's own AndroidX generation catches up.
+
+    The device checks run against the net8 assets on both platforms, so what net8 *does* support is
+    verified rather than inferred.
   -->
   <PropertyGroup>
     <DatadogSdkBand Condition=" '$(DatadogSdkBand)' == '' ">net9</DatadogSdkBand>
 
-    <DatadogNetVersionMoniker Condition=" '$(DatadogSdkBand)' == 'net9' ">net9.0</DatadogNetVersionMoniker>
-    <DatadogAndroidTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net9.0-android35.0</DatadogAndroidTargetFramework>
-    <DatadogiOSTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net9.0-ios18.0</DatadogiOSTargetFramework>
+    <DatadogNetVersionMoniker Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0;net9.0</DatadogNetVersionMoniker>
+    <DatadogAndroidTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-android34.0;net9.0-android35.0</DatadogAndroidTargetFramework>
+    <DatadogiOSTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-ios18.0;net9.0-ios18.0</DatadogiOSTargetFramework>
 
     <DatadogNetVersionMoniker Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0</DatadogNetVersionMoniker>
     <DatadogAndroidTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-android36.0</DatadogAndroidTargetFramework>
@@ -90,11 +107,27 @@
   <PropertyGroup>
     <!--
       12.2 on iOS because the Datadog frameworks are Swift and use the OS-provided Swift runtime,
-      which is only ABI-stable from 12.2. API 21 on Android, read off the .aar manifests - which is
-      a practical reason to prefer the 2.x line, since dd-sdk-android 3.0 raised the floor to 23.
+      which is only ABI-stable from 12.2.
+
+      API 23 on Android, and NOT the 21 the dd-sdk-android .aar manifests declare. Those .aars do
+      say 21, but they depend on an AndroidX generation that does not: androidx.savedstate 1.4.0
+      declares minSdkVersion 23, and the Android manifest merger takes the maximum across the whole
+      graph rather than trusting the direct dependency. An app declaring 21 therefore fails to build
+      outright, before anything runs:
+
+          uses-sdk:minSdkVersion 21 cannot be smaller than version 23 declared in library
+          ... androidx.savedstate.savedstate-android.aar
+
+      DatadogNet.Android's README records the floor as 21 for this reason, and treats it as a
+      practical argument for the 2.x line over 3.0's 23. That argument does not survive contact with
+      the transitive graph: 23 is the real floor either way.
+
+      The suggested `tools:overrideLibrary="androidx.savedstate"` escape is deliberately not taken.
+      It forces the library in and, as the error itself says, may fail at runtime instead - which is
+      a worse trade for the two API levels it buys.
     -->
     <DatadogSupportedIosVersion>12.2</DatadogSupportedIosVersion>
-    <DatadogSupportedAndroidVersion>21</DatadogSupportedAndroidVersion>
+    <DatadogSupportedAndroidVersion>23</DatadogSupportedAndroidVersion>
   </PropertyGroup>
 
   <PropertyGroup>

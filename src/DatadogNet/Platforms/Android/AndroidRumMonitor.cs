@@ -114,7 +114,10 @@ internal sealed class AndroidRumMonitor : IRumMonitor
             statusCode is { } code ? Java.Lang.Integer.ValueOf(code)! : null,
             message,
             Com.Datadog.Android.Rum.RumErrorSource.Network!,
-            stackTrace: stack!,
+            // stackTrace is `String` in Kotlin, not `String?`, so a null reaches Java's null check
+            // and throws - unlike errorType beside it, and unlike addErrorWithStacktrace, both of
+            // which are genuinely nullable. Nothing in the C# signature says which is which.
+            stackTrace: stack ?? string.Empty,
             errorType: null!,
             DatadogAttributes.From(attributes));
 

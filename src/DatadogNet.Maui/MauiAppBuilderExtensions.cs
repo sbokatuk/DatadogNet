@@ -112,8 +112,13 @@ public static partial class MauiAppBuilderExtensions
 
         var effective = options ?? new DatadogMauiOptions();
 
+        // The two-type-argument overload, not ServiceDescriptor.Singleton<ILoggerProvider>(factory):
+        // TryAddEnumerable de-duplicates on the descriptor's implementation *type*, and a
+        // factory-only descriptor has none - so it throws "Implementation type cannot be inferred"
+        // rather than registering anything.
         builder.Services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<ILoggerProvider>(_ => new DatadogLoggerProvider(effective)));
+            ServiceDescriptor.Singleton<ILoggerProvider, DatadogLoggerProvider>(
+                _ => new DatadogLoggerProvider(effective)));
 
         return builder;
     }

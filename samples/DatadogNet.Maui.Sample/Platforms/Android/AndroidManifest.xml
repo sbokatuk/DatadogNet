@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!--
+    INTERNET is what lets the SDK attempt its uploads. usesCleartextTraffic is only here because
+    every feature in this sample is pointed at http://localhost:9 - a real app uploading to Datadog
+    needs neither it nor any exception, since the intakes are HTTPS.
+  -->
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <application android:allowBackup="true" android:supportsRtl="true" android:usesCleartextTraffic="true" />
+</manifest>
