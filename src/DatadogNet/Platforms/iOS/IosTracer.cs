@@ -114,24 +114,6 @@ internal sealed class IosTracer : IDatadogTracer
 /// <summary>A span over <c>OTSpan</c>.</summary>
 internal sealed class IosSpan(IOTSpan native) : IDatadogSpan
 {
-    /// <summary>
-    /// The Datadog-format header names the trace and span ids are read out of.
-    /// </summary>
-    /// <remarks>
-    /// dd-sdk-ios's <c>OTSpanContext</c> declares nothing but <c>forEachBaggageItem</c> — there is
-    /// no <c>traceID</c> or <c>spanID</c> to read, on the protocol or on any bound type, and 3.x did
-    /// not change that. Injecting into a Datadog-format writer and parsing what comes out is the
-    /// only route to them from Objective-C.
-    /// <para>
-    /// dd-sdk-android 3.x has them directly and typed — <c>DatadogTraceId.ToHexString()</c> and
-    /// <c>DatadogSpanContext.GetSpanId()</c> — so this asymmetry is the iOS SDK's, and it widened
-    /// rather than closed in 3.x.
-    /// </para>
-    /// </remarks>
-    private const string TraceIdHeader = "x-datadog-trace-id";
-
-    private const string SpanIdHeader = "x-datadog-parent-id";
-
     private string? traceId;
     private string? spanId;
     private bool finished;
@@ -213,6 +195,18 @@ internal sealed class IosSpan(IOTSpan native) : IDatadogSpan
 
     public void Dispose() => Finish();
 
+    /// <summary>Reads the ids back out of a Datadog-format injection.</summary>
+    /// <remarks>
+    /// dd-sdk-ios's <c>OTSpanContext</c> declares nothing but <c>forEachBaggageItem</c> — there is
+    /// no <c>traceID</c> or <c>spanID</c> to read, on the protocol or on any bound type, and 3.x did
+    /// not change that. Injecting into a Datadog-format writer and parsing what comes out is the
+    /// only route to them from Objective-C.
+    /// <para>
+    /// The trace id arrives in two pieces, which is why it is reassembled rather than taken from
+    /// the header directly — see <see cref="TraceIdentifiers"/>. The span id needs no such work:
+    /// <c>x-datadog-parent-id</c> is already the decimal form Datadog correlates on.
+    /// </para>
+    /// </remarks>
     private void EnsureIds()
     {
         if (traceId is not null)
@@ -220,19 +214,27 @@ internal sealed class IosSpan(IOTSpan native) : IDatadogSpan
             return;
         }
 
-        traceId = string.Empty;
         spanId = string.Empty;
+
+        string? lowOrderBits = null;
+        string? tags = null;
 
         foreach (var field in IosTracer.InjectOne(this, TracingHeaderType.Datadog))
         {
-            if (field.Key.Equals(TraceIdHeader, StringComparison.OrdinalIgnoreCase))
+            if (field.Key.Equals(TraceIdentifiers.DatadogTraceIdHeader, StringComparison.OrdinalIgnoreCase))
             {
-                traceId = field.Value;
+                lowOrderBits = field.Value;
             }
-            else if (field.Key.Equals(SpanIdHeader, StringComparison.OrdinalIgnoreCase))
+            else if (field.Key.Equals(TraceIdentifiers.DatadogSpanIdHeader, StringComparison.OrdinalIgnoreCase))
             {
                 spanId = field.Value;
             }
+            else if (field.Key.Equals(TraceIdentifiers.DatadogTagsHeader, StringComparison.OrdinalIgnoreCase))
+            {
+                tags = field.Value;
+            }
         }
+
+        traceId = TraceIdentifiers.ToHexTraceId(lowOrderBits, tags);
     }
 }

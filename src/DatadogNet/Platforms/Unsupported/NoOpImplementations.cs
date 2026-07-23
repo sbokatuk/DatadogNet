@@ -101,6 +101,10 @@ internal sealed class NoOpRumMonitor : IRumMonitor
     {
     }
 
+    public void ReportAppFullyDisplayed()
+    {
+    }
+
     public void StopSession()
     {
     }
@@ -112,6 +116,18 @@ internal sealed class NoOpRumMonitor : IRumMonitor
         public string Key { get; } = key;
 
         public void Stop(IReadOnlyDictionary<string, object?>? attributes = null)
+        {
+        }
+
+        public void AddAttributes(IReadOnlyDictionary<string, object?> attributes)
+        {
+        }
+
+        public void RemoveAttributes(IEnumerable<string> keys)
+        {
+        }
+
+        public void AddLoadingTime(bool overwrite = false)
         {
         }
 

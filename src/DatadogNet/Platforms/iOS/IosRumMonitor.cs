@@ -163,6 +163,8 @@ internal sealed class IosRumMonitor : IRumMonitor
         Monitor.RemoveAttributesForKeys([.. keys]);
     }
 
+    public void ReportAppFullyDisplayed() => Monitor.ReportAppFullyDisplayed();
+
     public void StopSession() => Monitor.StopSession();
 
     public Task<string?> GetCurrentSessionIdAsync()
@@ -259,6 +261,50 @@ internal sealed class IosRumMonitor : IRumMonitor
 
             stopped = true;
             DDRUMMonitor.Shared().StopViewWithKey(Key, DatadogAttributes.From(attributes));
+        }
+
+        /// <remarks>
+        /// The attributes are held by the SDK against whichever view is currently active, not
+        /// against this key - neither SDK takes a view key here. In practice that is the same thing,
+        /// because a view scope is only useful while its view is the open one; a caller who keeps a
+        /// stopped scope around and adds to it is writing onto whatever view came next, which is why
+        /// the call is dropped once stopped.
+        /// </remarks>
+        public void AddAttributes(IReadOnlyDictionary<string, object?> attributes)
+        {
+            ArgumentNullException.ThrowIfNull(attributes);
+
+            if (stopped || attributes.Count == 0)
+            {
+                return;
+            }
+
+            DDRUMMonitor.Shared().AddViewAttributes(DatadogAttributes.From(attributes));
+        }
+
+        public void RemoveAttributes(IEnumerable<string> keys)
+        {
+            ArgumentNullException.ThrowIfNull(keys);
+
+            if (stopped)
+            {
+                return;
+            }
+
+            var names = keys.ToArray();
+
+            if (names.Length > 0)
+            {
+                DDRUMMonitor.Shared().RemoveViewAttributesForKeys(names);
+            }
+        }
+
+        public void AddLoadingTime(bool overwrite = false)
+        {
+            if (!stopped)
+            {
+                DDRUMMonitor.Shared().AddViewLoadingTimeWithOverwrite(overwrite);
+            }
         }
 
         public void Dispose() => Stop();

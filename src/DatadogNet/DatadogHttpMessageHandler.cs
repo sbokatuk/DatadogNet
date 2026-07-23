@@ -209,17 +209,30 @@ public sealed class DatadogHttpMessageHandler : DelegatingHandler
     /// point — a plain <c>EndsWith</c> would send your trace ids to anyone who registered a domain
     /// ending in your own.
     /// </remarks>
-    private static bool IsFirstParty(Uri? uri)
+    private static bool IsFirstParty(Uri? uri) =>
+        uri is not null
+        && Datadog.Configuration?.FirstPartyHosts is { Count: > 0 } hosts
+        && IsFirstParty(uri.Host, hosts.Keys);
+
+    /// <summary>The matching itself, free of the configuration it is normally read from.</summary>
+    /// <remarks>
+    /// Split out so it can be tested. Whether a host is first-party decides whether that host is
+    /// handed your trace ids, which makes it the one piece of logic in this façade where a quiet
+    /// mistake is a leak rather than a missing dashboard — it should not be reachable only through
+    /// an initialised SDK on a device.
+    /// </remarks>
+    internal static bool IsFirstParty(string host, IEnumerable<string> candidates)
     {
-        if (uri is null || Datadog.Configuration?.FirstPartyHosts is not { Count: > 0 } hosts)
-        {
-            return false;
-        }
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(candidates);
 
-        var host = uri.Host;
-
-        foreach (var candidate in hosts.Keys)
+        foreach (var candidate in candidates)
         {
+            if (string.IsNullOrEmpty(candidate))
+            {
+                continue;
+            }
+
             if (host.Equals(candidate, StringComparison.OrdinalIgnoreCase))
             {
                 return true;

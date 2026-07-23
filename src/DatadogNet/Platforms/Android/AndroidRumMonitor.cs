@@ -175,6 +175,8 @@ internal sealed class AndroidRumMonitor : IRumMonitor
         }
     }
 
+    public void ReportAppFullyDisplayed() => Monitor.ReportAppFullyDisplayed();
+
     public void StopSession() => Monitor.StopSession();
 
     public Task<string?> GetCurrentSessionIdAsync()
@@ -269,6 +271,50 @@ internal sealed class AndroidRumMonitor : IRumMonitor
 
             stopped = true;
             GlobalRumMonitor.Get().StopView(new Java.Lang.String(Key), DatadogAttributes.From(attributes));
+        }
+
+        /// <remarks>
+        /// The attributes are held by the SDK against whichever view is currently active, not
+        /// against this key - neither SDK takes a view key here. In practice that is the same thing,
+        /// because a view scope is only useful while its view is the open one; a caller who keeps a
+        /// stopped scope around and adds to it is writing onto whatever view came next, which is why
+        /// the call is dropped once stopped.
+        /// </remarks>
+        public void AddAttributes(IReadOnlyDictionary<string, object?> attributes)
+        {
+            ArgumentNullException.ThrowIfNull(attributes);
+
+            if (stopped || attributes.Count == 0)
+            {
+                return;
+            }
+
+            GlobalRumMonitor.Get().AddViewAttributes(DatadogAttributes.From(attributes));
+        }
+
+        public void RemoveAttributes(IEnumerable<string> keys)
+        {
+            ArgumentNullException.ThrowIfNull(keys);
+
+            if (stopped)
+            {
+                return;
+            }
+
+            var names = keys.ToList();
+
+            if (names.Count > 0)
+            {
+                GlobalRumMonitor.Get().RemoveViewAttributes(names);
+            }
+        }
+
+        public void AddLoadingTime(bool overwrite = false)
+        {
+            if (!stopped)
+            {
+                GlobalRumMonitor.Get().AddViewLoadingTime(overwrite);
+            }
         }
 
         public void Dispose() => Stop();

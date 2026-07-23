@@ -137,6 +137,43 @@ public interface IRumViewScope : IDisposable
     /// <summary>Stops the view, if it is still open.</summary>
     /// <param name="attributes">Attributes attached at stop time.</param>
     void Stop(IReadOnlyDictionary<string, object?>? attributes = null);
+
+    /// <summary>
+    /// Attaches attributes to this view, and to everything reported inside it.
+    /// </summary>
+    /// <param name="attributes">The attributes to attach.</param>
+    /// <remarks>
+    /// New in the 3.x line on both platforms, and the most useful thing it added. Unlike a global
+    /// attribute, these are scoped to the view and removed with it; unlike an attribute passed to a
+    /// single call, they propagate to the actions, resources, errors and long tasks reported while
+    /// this view is open. That removes the usual reason to repeat the same three keys on every call.
+    /// <code>
+    /// using var view = Datadog.Rum.StartView ("checkout");
+    /// view.AddAttributes (new Dictionary&lt;string, object?&gt; { ["cart.id"] = cartId });
+    /// </code>
+    /// <para>
+    /// Setting a key that is already present replaces it.
+    /// </para>
+    /// </remarks>
+    void AddAttributes(IReadOnlyDictionary<string, object?> attributes);
+
+    /// <summary>Removes attributes previously added with <see cref="AddAttributes"/>.</summary>
+    /// <param name="keys">The attribute names to remove. Unknown names are ignored.</param>
+    void RemoveAttributes(IEnumerable<string> keys);
+
+    /// <summary>
+    /// Records how long this view took to become useful, as a RUM loading time.
+    /// </summary>
+    /// <param name="overwrite">
+    /// Whether to replace a loading time already recorded for this view. Defaults to
+    /// <see langword="false"/>, which keeps the first value.
+    /// </param>
+    /// <remarks>
+    /// Call it at the moment the view is actually usable, which is rarely the moment it appeared —
+    /// a page whose skeleton renders instantly and whose content arrives a second later has a
+    /// loading time of a second, and only the app knows that.
+    /// </remarks>
+    void AddLoadingTime(bool overwrite = false);
 }
 
 /// <summary>
@@ -309,6 +346,20 @@ public interface IRumMonitor
 
     /// <summary>Removes several global attributes.</summary>
     void RemoveAttributes(IEnumerable<string> keys);
+
+    /// <summary>
+    /// Marks the moment the app became usable after launch.
+    /// </summary>
+    /// <remarks>
+    /// New in the 3.x line on both platforms. Both SDKs measure time-to-first-frame on their own,
+    /// but a MAUI app is usually not finished at its first frame — the shell is up and the content
+    /// is still arriving. Call this when the user could actually do something, and RUM reports it as
+    /// the app's time-to-interactive instead of guessing.
+    /// <para>
+    /// Only the first call in a session counts; later ones are ignored by both SDKs.
+    /// </para>
+    /// </remarks>
+    void ReportAppFullyDisplayed();
 
     /// <summary>
     /// Ends the current session. The next event starts a new one.

@@ -128,12 +128,22 @@ internal sealed class AndroidSpan(NativeSpan native) : IDatadogSpan
     internal NativeSpan Native { get; } = native;
 
     /// <remarks>
-    /// Hexadecimal, because <c>DatadogTraceId</c> is 128-bit in 3.x and <c>ToLong()</c> would
-    /// silently return the low half. iOS reports the decimal form its own headers carry, so the two
-    /// strings do not match character for character — they name the same trace in Datadog, and
-    /// neither SDK offers the other's rendering.
+    /// <c>ToHexString()</c> rather than <c>ToLong()</c>, which would silently return the low half of
+    /// a 128-bit id — and rather than any rendering of this façade's own choosing, because this is
+    /// the call dd-sdk-android's own <c>DatadogInterceptor</c> makes when it writes
+    /// <c>_dd.trace_id</c> onto a RUM resource. Matching it is what makes the correlation work.
+    /// <para>
+    /// iOS reassembles the same 32-character form by hand, for want of anything to call — see
+    /// <see cref="TraceIdentifiers"/>.
+    /// </para>
     /// </remarks>
     public string TraceId => Context?.TraceId?.ToHexString() ?? string.Empty;
+
+    /// <remarks>
+    /// Decimal, and deliberately not hexadecimal like the trace id above it. The asymmetry is
+    /// Datadog's wire format: <c>DatadogInterceptor</c> writes <c>_dd.span_id</c> as
+    /// <c>String.valueOf(long)</c>. iOS's <c>x-datadog-parent-id</c> is already in this form.
+    /// </remarks>
 
     public string SpanId => Context is { } context
         ? context.SpanId.ToString(System.Globalization.CultureInfo.InvariantCulture)
