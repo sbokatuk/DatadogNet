@@ -27,7 +27,7 @@
       docs/native-surface.md for what is covered.
     -->
     <DatadogNativeVersion>3.14.0</DatadogNativeVersion>
-    <DatadogBindingRevision>1</DatadogBindingRevision>
+    <DatadogBindingRevision>2</DatadogBindingRevision>
     <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
 
     <!--
@@ -37,14 +37,15 @@
       covered by any compatibility promise, and a floating reference would turn a change there into
       a build break in somebody's app rather than here.
 
-      Both are the published 3.x releases, with no revision of our own required: the protocol-binding
-      defect that forced DatadogNet.iOS 2.30.2.2 does not exist in the 3.x binding, which already
-      declares IOTTracer/IOTSpan/IOTSpanContext as interfaces. The convenience additions made to the
-      2.x branches are not on these; where the façade still needs one it carries its own shim, each
-      marked with the upstream member that would replace it. See docs/upgrade-to-3x.md.
+      Revision .2 on both, and this façade depends on what that revision added. The convenience
+      layers now carry the members this repository used to shim for itself: the per-value attribute
+      converters (DatadogAttributes.ToJava / ToNSObject), GetCurrentSessionIdAsync on both monitors,
+      header injection on both tracers, and GetTraceId / GetSpanId on iOS - which is where the
+      trace-id reassembly now lives. Those shims have been deleted here rather than left to drift,
+      so .1 will not build this. See docs/release-notes/3.14.0.2.md.
     -->
-    <DatadogNetiOSVersion>3.14.0.1</DatadogNetiOSVersion>
-    <DatadogNetAndroidVersion>3.12.1.1</DatadogNetAndroidVersion>
+    <DatadogNetiOSVersion>3.14.0.2</DatadogNetiOSVersion>
+    <DatadogNetAndroidVersion>3.12.1.2</DatadogNetAndroidVersion>
     <DatadogAndroidNativeVersion>3.12.1</DatadogAndroidNativeVersion>
   </PropertyGroup>
 

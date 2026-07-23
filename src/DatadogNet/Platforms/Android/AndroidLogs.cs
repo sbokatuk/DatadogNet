@@ -36,7 +36,7 @@ internal sealed class AndroidLogs : IDatadogLogs
     }
 
     public void AddAttribute(string key, object? value) =>
-        NativeLogs.AddAttribute(key, NativeAttributes.Single(key, value));
+        NativeLogs.AddAttribute(key, DatadogAttributes.ToJava(value, key));
 
     public void RemoveAttribute(string key) => NativeLogs.RemoveAttribute(key);
 
@@ -115,7 +115,7 @@ internal sealed class AndroidLogger(Logger native) : IDatadogLogger
         Log(DatadogLogLevel.Critical, message, exception, attributes);
 
     public void AddAttribute(string key, object? value) =>
-        native.AddAttribute(key, NativeAttributes.Single(key, value));
+        native.AddAttribute(key, value);
 
     public void RemoveAttribute(string key) => native.RemoveAttribute(key);
 

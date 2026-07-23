@@ -145,11 +145,11 @@ internal sealed class AndroidRumMonitor : IRumMonitor
     {
         ArgumentNullException.ThrowIfNull(value);
 
-        Monitor.AddFeatureFlagEvaluation(name, NativeAttributes.Single(name, value));
+        Monitor.AddFeatureFlagEvaluation(name, DatadogAttributes.ToJava(value, name));
     }
 
     public void AddAttribute(string key, object? value) =>
-        Monitor.AddAttribute(key, NativeAttributes.Single(key, value));
+        Monitor.AddAttribute(key, DatadogAttributes.ToJava(value, key));
 
     public void AddAttributes(IReadOnlyDictionary<string, object?> attributes)
     {
@@ -159,7 +159,7 @@ internal sealed class AndroidRumMonitor : IRumMonitor
         // crossing the bridge per key, which is not a cost that exists here.
         foreach (var pair in attributes)
         {
-            Monitor.AddAttribute(pair.Key, NativeAttributes.Single(pair.Key, pair.Value));
+            Monitor.AddAttribute(pair.Key, DatadogAttributes.ToJava(pair.Value, pair.Key));
         }
     }
 
@@ -175,16 +175,14 @@ internal sealed class AndroidRumMonitor : IRumMonitor
         }
     }
 
+    public void ReportAppFullyDisplayed() => Monitor.ReportAppFullyDisplayed();
+
     public void StopSession() => Monitor.StopSession();
 
-    public Task<string?> GetCurrentSessionIdAsync()
-    {
-        var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        Monitor.GetCurrentSessionId(new SessionIdCallback(completion));
-
-        return completion.Task;
-    }
+    // GetCurrentSessionIdAsync is DatadogNet.Android's own member. The generated GetCurrentSessionId
+    // takes a kotlin.jvm.functions.Function1, which binds as an interface and which C# cannot express
+    // as a lambda at all - so this used to need a Java.Lang.Object subclass here.
+    public Task<string?> GetCurrentSessionIdAsync() => Monitor.GetCurrentSessionIdAsync();
 
     private static Com.Datadog.Android.Rum.RumActionType ToNative(RumActionType type) => type switch
     {
@@ -234,26 +232,6 @@ internal sealed class AndroidRumMonitor : IRumMonitor
         _ => Com.Datadog.Android.Rum.RumResourceKind.Native!,
     };
 
-    /// <summary>
-    /// Adapts <c>getCurrentSessionId</c>'s Kotlin lambda to a completion source.
-    /// </summary>
-    /// <remarks>
-    /// The parameter is a <c>kotlin.jvm.functions.Function1</c>, which C# cannot express as a
-    /// lambda: it binds as an interface, so a real Java-callable object is required. iOS takes an
-    /// ordinary block and needs none of this.
-    /// </remarks>
-    private sealed class SessionIdCallback(TaskCompletionSource<string?> completion)
-        : Java.Lang.Object, Kotlin.Jvm.Functions.IFunction1
-    {
-        public Java.Lang.Object? Invoke(Java.Lang.Object? sessionId)
-        {
-            completion.TrySetResult(sessionId?.ToString());
-
-            // Kotlin's Unit. Returning null is what the binding maps a Unit-returning lambda to.
-            return null;
-        }
-    }
-
     private sealed class ViewScope(string key) : IRumViewScope
     {
         private bool stopped;
@@ -269,6 +247,50 @@ internal sealed class AndroidRumMonitor : IRumMonitor
 
             stopped = true;
             GlobalRumMonitor.Get().StopView(new Java.Lang.String(Key), DatadogAttributes.From(attributes));
+        }
+
+        /// <remarks>
+        /// The attributes are held by the SDK against whichever view is currently active, not
+        /// against this key - neither SDK takes a view key here. In practice that is the same thing,
+        /// because a view scope is only useful while its view is the open one; a caller who keeps a
+        /// stopped scope around and adds to it is writing onto whatever view came next, which is why
+        /// the call is dropped once stopped.
+        /// </remarks>
+        public void AddAttributes(IReadOnlyDictionary<string, object?> attributes)
+        {
+            ArgumentNullException.ThrowIfNull(attributes);
+
+            if (stopped || attributes.Count == 0)
+            {
+                return;
+            }
+
+            GlobalRumMonitor.Get().AddViewAttributes(DatadogAttributes.From(attributes));
+        }
+
+        public void RemoveAttributes(IEnumerable<string> keys)
+        {
+            ArgumentNullException.ThrowIfNull(keys);
+
+            if (stopped)
+            {
+                return;
+            }
+
+            var names = keys.ToList();
+
+            if (names.Count > 0)
+            {
+                GlobalRumMonitor.Get().RemoveViewAttributes(names);
+            }
+        }
+
+        public void AddLoadingTime(bool overwrite = false)
+        {
+            if (!stopped)
+            {
+                GlobalRumMonitor.Get().AddViewLoadingTime(overwrite);
+            }
         }
 
         public void Dispose() => Stop();

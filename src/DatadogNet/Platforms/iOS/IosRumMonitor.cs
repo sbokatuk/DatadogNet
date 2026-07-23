@@ -141,11 +141,11 @@ internal sealed class IosRumMonitor : IRumMonitor
     {
         ArgumentNullException.ThrowIfNull(value);
 
-        Monitor.AddFeatureFlagEvaluationWithName(name, NativeAttributes.Single(name, value));
+        Monitor.AddFeatureFlagEvaluationWithName(name, DatadogAttributes.ToNSObject(value, name));
     }
 
     public void AddAttribute(string key, object? value) =>
-        Monitor.AddAttributeForKey(key, NativeAttributes.Single(key, value));
+        Monitor.AddAttributeForKey(key, DatadogAttributes.ToNSObject(value, key));
 
     public void AddAttributes(IReadOnlyDictionary<string, object?> attributes)
     {
@@ -163,19 +163,13 @@ internal sealed class IosRumMonitor : IRumMonitor
         Monitor.RemoveAttributesForKeys([.. keys]);
     }
 
+    public void ReportAppFullyDisplayed() => Monitor.ReportAppFullyDisplayed();
+
     public void StopSession() => Monitor.StopSession();
 
-    public Task<string?> GetCurrentSessionIdAsync()
-    {
-        // TaskCreationOptions.RunContinuationsAsynchronously: the completion runs on whichever
-        // queue the SDK answers on, and a synchronous continuation would run the caller's
-        // await-resumption there too.
-        var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        Monitor.CurrentSessionIDWithCompletion(sessionId => completion.TrySetResult(sessionId?.ToString()));
-
-        return completion.Task;
-    }
+    // GetCurrentSessionIdAsync is DatadogNet.iOS's own member; the generated one answers through
+    // a completion block on the SDK's own queue.
+    public Task<string?> GetCurrentSessionIdAsync() => Monitor.GetCurrentSessionIdAsync();
 
     private static IReadOnlyDictionary<string, object?>? WithStatusCode(
         IReadOnlyDictionary<string, object?>? attributes,
@@ -259,6 +253,50 @@ internal sealed class IosRumMonitor : IRumMonitor
 
             stopped = true;
             DDRUMMonitor.Shared().StopViewWithKey(Key, DatadogAttributes.From(attributes));
+        }
+
+        /// <remarks>
+        /// The attributes are held by the SDK against whichever view is currently active, not
+        /// against this key - neither SDK takes a view key here. In practice that is the same thing,
+        /// because a view scope is only useful while its view is the open one; a caller who keeps a
+        /// stopped scope around and adds to it is writing onto whatever view came next, which is why
+        /// the call is dropped once stopped.
+        /// </remarks>
+        public void AddAttributes(IReadOnlyDictionary<string, object?> attributes)
+        {
+            ArgumentNullException.ThrowIfNull(attributes);
+
+            if (stopped || attributes.Count == 0)
+            {
+                return;
+            }
+
+            DDRUMMonitor.Shared().AddViewAttributes(DatadogAttributes.From(attributes));
+        }
+
+        public void RemoveAttributes(IEnumerable<string> keys)
+        {
+            ArgumentNullException.ThrowIfNull(keys);
+
+            if (stopped)
+            {
+                return;
+            }
+
+            var names = keys.ToArray();
+
+            if (names.Length > 0)
+            {
+                DDRUMMonitor.Shared().RemoveViewAttributesForKeys(names);
+            }
+        }
+
+        public void AddLoadingTime(bool overwrite = false)
+        {
+            if (!stopped)
+            {
+                DDRUMMonitor.Shared().AddViewLoadingTimeWithOverwrite(overwrite);
+            }
         }
 
         public void Dispose() => Stop();

@@ -28,7 +28,7 @@ internal sealed class IosLogs : IDatadogLogs
     }
 
     public void AddAttribute(string key, object? value) =>
-        DDLogs.AddAttributeForKey(key, NativeAttributes.Single(key, value));
+        DDLogs.AddAttributeForKey(key, DatadogAttributes.ToNSObject(value, key));
 
     public void RemoveAttribute(string key) => DDLogs.RemoveAttributeForKey(key);
 
@@ -79,7 +79,7 @@ internal sealed class IosLogger(DDLogger native) : IDatadogLogger
         Log(DatadogLogLevel.Critical, message, exception, attributes);
 
     public void AddAttribute(string key, object? value) =>
-        native.AddAttributeForKey(key, NativeAttributes.Single(key, value));
+        native.AddAttribute(key, value);
 
     public void RemoveAttribute(string key) => native.RemoveAttributeForKey(key);
 

@@ -82,13 +82,26 @@ public partial class MainPage : ContentPage
         // A view that is not a page: a modal step, a wizard stage, anything the user would call a
         // screen. Scoped to a using block so an early return or an exception cannot leave it open —
         // a view left open goes on collecting every later action and error in the session.
-        using (rum.StartView("checkout-flow", "Checkout"))
+        using (var view = rum.StartView("checkout-flow", "Checkout"))
         {
+            // View-scoped attributes, new in the 3.x line. These land on the view *and* on
+            // everything reported inside it, so the action below carries cart.id and cart.items
+            // without either being passed along - and both disappear when the view closes, unlike
+            // rum.AddAttribute, which would attach them to the rest of the session.
+            view.AddAttributes(new Dictionary<string, object?>
+            {
+                ["cart.id"] = Guid.NewGuid().ToString("N"),
+                ["cart.items"] = 3,
+            });
+
             rum.AddTiming("cart-loaded");
             rum.AddAction(RumActionType.Custom, "inside-custom-view");
+
+            // When the screen is actually usable, which is rarely when it appeared.
+            view.AddLoadingTime();
         }
 
-        Write("Opened and closed a custom RUM view with a timing.");
+        Write("Opened and closed a custom RUM view with scoped attributes and a loading time.");
     }
 
     private void OnReportFeatureFlag(object? sender, EventArgs e)

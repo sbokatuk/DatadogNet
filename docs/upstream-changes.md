@@ -1,5 +1,9 @@
 # Changes made to the platform binding repositories
 
+> **Two rounds.** The 2.x round is recorded below and shipped as `DatadogNet.iOS 2.30.2.2` /
+> `DatadogNet.Android 2.26.3.2`. The 3.x round is at the end of this document and ships as
+> `3.14.0.2` / `3.12.1.2`.
+
 Building this façade surfaced a set of gaps in
 [DatadogNet.iOS](https://github.com/sbokatuk/DatadogNet.iOS) and
 [DatadogNet.Android](https://github.com/sbokatuk/DatadogNet.Android). Each was fixed there rather
@@ -182,3 +186,50 @@ but they are different rules and no binding change can make them the same. The f
 device — but the event models are large, entirely different between the two SDKs, and generated from
 separate schemas. A cross-platform version would be a third schema to maintain and would still not
 expose the fields only one platform has. The façade routes to them through `ConfigureNative`.
+
+
+---
+
+## The 3.x round — `DatadogNet.iOS 3.14.0.2` and `DatadogNet.Android 3.12.1.2`
+
+The 2.x additions were made on the `datadog-2.x` branches and did not carry to the 3.x trees. This
+round ports them and adds what the 3.x APIs newly need — and, unlike the 2.x round, **the façade now
+depends on them**: the corresponding shims here have been deleted rather than left in place, so
+`DatadogNet 3.14.0.2` will not build against binding revision `.1`.
+
+| Repository | Change |
+| --- | --- |
+| iOS | `DatadogAttributes.ToNSObject` made public |
+| iOS | `OTSpanExtensions`: `GetTraceId`, `GetSpanId`, `InjectHeaders`, `SetError(Exception)`, `Log(dictionary)`, and an `OTHeaderFormats` flags enum |
+| iOS | `DDRUMMonitor`: `AddAttribute`, `AddViewAttribute`, `AddFeatureFlagEvaluation`, `GetCurrentSessionIdAsync` |
+| iOS | `DDLogger.AddAttribute` taking a plain value |
+| iOS | README: a measured API-coverage section, including the three frameworks with no Objective-C surface at all |
+| Android | `DatadogAttributes.ToJava` made public |
+| Android | `RumMonitorExtensions`: `GetCurrentSessionIdAsync`, `AddAttribute`, `AddFeatureFlagEvaluation`, resource overloads |
+| Android | `DatadogPropagationExtensions.Inject` — dictionary and delegate forms over the Kotlin `IFunction3` |
+| Android | `DatadogSpanExtensions`: `SetError(Exception)`, `SetError(kind, message, stack)`, `GetTraceId`, `GetSpanId` |
+| Android | `LoggerExtensions.AddAttribute` taking a plain value |
+| Android | `packages.tsv`: all fourteen unbound `dd-sdk-android*` artifacts documented, with a reason each |
+
+### Why these two in particular
+
+**`GetTraceId` on iOS** is the one that matters most, and it is why `DatadogNet 3.14.0.1` shipped a
+bug. `OTSpanContext` exposes no ids, so they can only be recovered by injecting into a Datadog-format
+writer — and the trace id arrives in two pieces, the decimal low 64 bits in `x-datadog-trace-id` and
+the high 64 as `_dd.p.tid` inside `x-datadog-tags`. A consumer who reads only the first gets a
+decimal string naming half of a different-looking id, which is exactly what happened. Now there is
+one implementation, next to the SDK it reads from.
+
+**`Inject` on Android** takes a Kotlin `(C, String, String) -> Unit`, which binds as the `IFunction3`
+*interface* — so C# cannot pass a lambda, a method group, or an `Action<,,>`. Every consumer wanting
+distributed tracing had to write a `Java.Lang.Object` subclass, and getting it wrong fails silently:
+the request goes out with no trace headers and the trace stops at the app.
+
+### One thing that turned out not to be needed
+
+An earlier draft added a `BuildSpan(string)` overload, on the grounds that the 3.x `DatadogTracer`
+declares `CharSequence` and the façade was writing `BuildSpan(new Java.Lang.String(name))`. That was
+wrong — the generator already emits `IDatadogTracerExtensions.BuildSpan(IDatadogTracer, string)`, and
+adding a second made the call ambiguous. The façade's workaround existed only because it had never
+imported the namespace the generated extension lives in. Before adding a convenience member, check
+the generated `*Extensions` class first.

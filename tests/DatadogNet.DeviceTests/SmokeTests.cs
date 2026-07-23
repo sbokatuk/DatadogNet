@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace DatadogNet.DeviceTests;
 
 /// <summary>A single on-device check. Throws to fail.</summary>
@@ -62,6 +64,7 @@ public static class SmokeTests
         new("rejects an attribute value with no native representation", RejectsUnconvertibleAttribute),
         new("drives RUM resources, timings and feature flags", DrivesRumResources),
         new("manages session-wide RUM attributes", ManagesGlobalRumAttributes),
+        new("manages view-scoped RUM attributes and loading time", ManagesViewScopedAttributes),
         new("reads the current RUM session id", ReadsCurrentSessionId),
         new("writes a log at every level", WritesEveryLogLevel),
         new("attaches an exception to a log entry", AttachesExceptionToLog),
@@ -459,11 +462,28 @@ public static class SmokeTests
 
         Report($"trace {span.TraceId} span {span.SpanId}");
 
-        // The ids come from entirely different places: dd-sdk-android has toTraceId() on the span
-        // context, and dd-sdk-ios has nothing at all - there they are parsed back out of an
-        // injected Datadog-format header. Both must produce something.
-        Assert(span.TraceId.Length > 0, "The span reported an empty trace id.");
-        Assert(span.SpanId.Length > 0, "The span reported an empty span id.");
+        // The ids come from entirely different places: dd-sdk-android reads a typed DatadogTraceId
+        // off the span context, and dd-sdk-ios has nothing at all - there they are reassembled from
+        // an injected Datadog-format header plus the _dd.p.tid propagation tag.
+        //
+        // Asserting the *shape* rather than mere non-emptiness, because "not empty" is what this
+        // check used to say and it is why 3.14.0.1 shipped with iOS reporting a decimal id where
+        // Android reported hex. The two platforms must agree with each other and with Datadog:
+        // trace ids are 32 lowercase hex characters (DatadogTraceId.toHexString) and span ids are
+        // decimal (String.valueOf), which is what dd-sdk-android's own DatadogInterceptor writes
+        // for _dd.trace_id and _dd.span_id.
+        Assert(
+            span.TraceId.Length == 32 && span.TraceId.All(IsLowerHex),
+            $"The trace id '{span.TraceId}' is not 32 lowercase hex characters, so it does not " +
+            "match what Datadog correlates a RUM resource to an APM trace on.");
+
+        Assert(
+            span.TraceId.Any(c => c != '0'),
+            "The trace id is all zeros, which means no trace was actually started.");
+
+        Assert(
+            span.SpanId.Length > 0 && span.SpanId.All(char.IsAsciiDigit),
+            $"The span id '{span.SpanId}' is not decimal.");
 
         var headers = Datadog.Tracer.Inject(span);
 
@@ -477,6 +497,91 @@ public static class SmokeTests
         Assert(
             headers.ContainsKey("traceparent"),
             "Injection produced no traceparent header, though TraceContext was configured.");
+
+        // Ties the rendering back to the wire, on both platforms at once: whatever the SDK put in
+        // the header is the low half of the id the span reports. This is the invariant that makes
+        // the two platforms comparable - it holds on Android, where the id is read from a typed
+        // context and the header is written independently, and on iOS, where the id is derived from
+        // the header. Neither can drift from its own propagation without failing here.
+        if (headers.TryGetValue("x-datadog-trace-id", out var lowOrderBits)
+            && ulong.TryParse(lowOrderBits, out var low))
+        {
+            var expected = low.ToString("x16", CultureInfo.InvariantCulture);
+
+            Assert(
+                span.TraceId.EndsWith(expected, StringComparison.Ordinal),
+                $"The trace id '{span.TraceId}' does not end with '{expected}', the low 64 bits the " +
+                $"x-datadog-trace-id header carries as '{lowOrderBits}'.");
+        }
+
+        if (headers.TryGetValue("traceparent", out var traceparent))
+        {
+            // W3C carries the full 128 bits as hex, so it is an independent second opinion on the
+            // whole id rather than just its low half: 00-<32 hex trace>-<16 hex span>-<flags>.
+            var parts = traceparent.Split('-');
+
+            Assert(
+                parts.Length >= 2 && parts[1].Equals(span.TraceId, StringComparison.Ordinal),
+                $"The trace id '{span.TraceId}' disagrees with the traceparent header " +
+                $"'{traceparent}', so the same request would be two different traces.");
+        }
+    }
+
+    /// <summary>Whether a character is a lowercase hex digit.</summary>
+    /// <remarks>
+    /// Case matters: these ids are compared as strings by everything downstream, and Datadog's own
+    /// renderers emit lowercase.
+    /// </remarks>
+    private static bool IsLowerHex(char c) =>
+        char.IsAsciiDigit(c) || c is >= 'a' and <= 'f';
+
+    /// <summary>The 3.x view-scoped members, which have no 2.x equivalent.</summary>
+    /// <remarks>
+    /// These reach different native calls on each platform - addViewAttributes/removeViewAttributes
+    /// on Android against addViewAttributes:/removeViewAttributesForKeys: on iOS, plus
+    /// addViewLoadingTime with an overwrite flag and reportAppFullyDisplayed - and none of them
+    /// returns anything to inspect. What is being checked is that all four are reachable and none
+    /// throws, including the edge cases the façade guards: an empty collection, unknown keys, and
+    /// use after the scope has stopped.
+    /// </remarks>
+    private static void ManagesViewScopedAttributes()
+    {
+        using (var view = Datadog.Rum.StartView("view-scoped"))
+        {
+            view.AddAttributes(new Dictionary<string, object?>
+            {
+                ["view.string"] = "value",
+                ["view.int"] = 42,
+                ["view.bool"] = true,
+                ["view.null"] = null,
+            });
+
+            // Replacing an existing key, which both SDKs treat as an overwrite rather than an error.
+            view.AddAttributes(new Dictionary<string, object?> { ["view.string"] = "replaced" });
+
+            // Empty is dropped before it reaches the SDK; it must not throw or clear anything.
+            view.AddAttributes(new Dictionary<string, object?>());
+            view.RemoveAttributes([]);
+
+            // An unknown key is ignored by both SDKs rather than throwing.
+            view.RemoveAttributes(["view.int", "never.set"]);
+
+            view.AddLoadingTime();
+            // The second call is ignored unless overwrite is asked for - neither must throw.
+            view.AddLoadingTime(overwrite: true);
+
+            Datadog.Rum.ReportAppFullyDisplayed();
+            // Only the first counts; a second call must still be safe.
+            Datadog.Rum.ReportAppFullyDisplayed();
+
+            view.Stop();
+
+            // After the scope has stopped these are dropped by the façade, because the SDK would
+            // otherwise apply them to whatever view came next.
+            view.AddAttributes(new Dictionary<string, object?> { ["view.late"] = "dropped" });
+            view.RemoveAttributes(["view.late"]);
+            view.AddLoadingTime();
+        }
     }
 
     private static async Task ReportsHttpRequest()
