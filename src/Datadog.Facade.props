@@ -39,6 +39,10 @@
     <SupportedOSPlatformVersion>$(DatadogSupportedIosVersion)</SupportedOSPlatformVersion>
   </PropertyGroup>
 
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+    <SupportedOSPlatformVersion>$(DatadogSupportedMacCatalystVersion)</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
   <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <SupportedOSPlatformVersion>$(DatadogSupportedAndroidVersion)</SupportedOSPlatformVersion>
 
@@ -82,7 +86,14 @@
     <None Remove="Platforms/Android/**/*.cs" />
   </ItemGroup>
 
-  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+  <!--
+    Mac Catalyst compiles the iOS implementation, deliberately: Catalyst is UIKit underneath, the
+    DatadogNet.Mac binding packages are verbatim copies of the DatadogNet.iOS binding definitions
+    (same types, same namespaces), and dd-sdk-ios is the SDK running on both. A Platforms/
+    MacCatalyst directory would be a byte-for-byte copy that could only ever drift.
+  -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'
+                     or $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
     <Compile Include="Platforms/iOS/**/*.cs" />
     <None Remove="Platforms/iOS/**/*.cs" />
   </ItemGroup>

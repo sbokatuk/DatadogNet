@@ -8,7 +8,7 @@
       NullReferenceException inside the .NET Android SDK. That is an SDK defect rather than anything
       the bindings do, and it is why the packages' floor is net9 while this sample's is net10.
     -->
-    <TargetFrameworks>net10.0-android36.0;net10.0-ios26.0</TargetFrameworks>
+    <TargetFrameworks>net10.0-android36.0;net10.0-ios26.0;net10.0-maccatalyst26.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
@@ -28,6 +28,7 @@
 
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">12.2</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 
   <!--

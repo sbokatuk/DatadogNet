@@ -8,10 +8,11 @@
 [![Licence: MIT AND Apache-2.0](https://img.shields.io/badge/licence-MIT%20AND%20Apache--2.0-green)](#licence)
 
 **One Datadog API for .NET MAUI.** Real User Monitoring, Logs, Trace, Session Replay and crash
-reporting on Android and iOS, written once in shared code.
+reporting on Android, iOS and Mac Catalyst, written once in shared code.
 
-Built on [DatadogNet.iOS](https://github.com/sbokatuk/DatadogNet.iOS) and
-[DatadogNet.Android](https://github.com/sbokatuk/DatadogNet.Android), which bind the native SDKs.
+Built on [DatadogNet.iOS](https://github.com/sbokatuk/DatadogNet.iOS),
+[DatadogNet.Android](https://github.com/sbokatuk/DatadogNet.Android) and
+[DatadogNet.Mac](https://github.com/sbokatuk/DatadogNet.Mac), which bind the native SDKs.
 Those two are faithful projections of Kotlin and Objective-C, and consequently share almost no
 shape: `Configuration.Builder(...).UseSite(...).Build()` against `new DDConfiguration { Site = … }`,
 `GlobalRumMonitor.Get()` against `DDRUMMonitor.Shared`, `io.opentracing` against `OTTracer`. This
@@ -84,14 +85,20 @@ Most apps need one or two lines:
 ```
 
 **Target frameworks.** `DatadogNet`, `DatadogNet.CrashReporting` and `DatadogNet.WebView` ship
-nine: `net8.0`, `net9.0` and `net10.0`, each with its `-android` and `-ios` head —
-`net8.0-android34.0`, `net8.0-ios18.0`, `net9.0-android35.0`, `net9.0-ios18.0`,
-`net10.0-android36.0`, `net10.0-ios26.0`. `DatadogNet.Maui` ships the six platform ones only.
+twelve: `net8.0`, `net9.0` and `net10.0`, each with its `-android`, `-ios` and `-maccatalyst`
+head — `net8.0-android34.0`, `net8.0-ios18.0`, `net8.0-maccatalyst18.0`, `net9.0-android35.0`,
+`net9.0-ios18.0`, `net9.0-maccatalyst18.0`, `net10.0-android36.0`, `net10.0-ios26.0`,
+`net10.0-maccatalyst26.0`. `DatadogNet.Maui` ships the nine platform ones only.
 
-The plain `net9.0`/`net10.0` assets are not padding. A MAUI app routinely also has a Windows or Mac
-Catalyst head, and NuGet resolves each head independently; without a platform-neutral asset the
-reference has to be guarded by target platform in every project that has one. With it, the reference
-is unconditional and the Windows head links an implementation whose every member is a documented
+The Mac Catalyst head is real, not a shim: it compiles the same implementation the iOS head uses,
+over the [DatadogNet.Mac](https://github.com/sbokatuk/DatadogNet.Mac) bindings — dd-sdk-ios built
+from source for Catalyst. Datadog's own support for Catalyst is *partial* (macOS 12+), and Session
+Replay records nothing there, so `SessionReplayOptions` is accepted and does nothing on a Mac.
+
+The plain `net9.0`/`net10.0` assets are not padding. A MAUI app routinely also has a Windows head,
+and NuGet resolves each head independently; without a platform-neutral asset the reference has to
+be guarded by target platform in every project that has one. With it, the reference is
+unconditional and the Windows head links an implementation whose every member is a documented
 no-op — so shared code that reports a RUM view compiles and runs there, and in a unit test, without
 a single `#if`.
 
@@ -588,8 +595,9 @@ Curated notes in `docs/release-notes/<version>.md` replace the generated commit 
 common cause by a wide margin. Then set `Verbosity = DatadogVerbosity.Debug` in the configuration and
 watch logcat or the Xcode console; that is where "your client token is invalid" appears.
 
-**Everything is a no-op and `Datadog.IsSupported` is `false`.** You are on a Windows or Mac Catalyst
-head, or in a unit test running against the neutral assembly. That is what it is for.
+**Everything is a no-op and `Datadog.IsSupported` is `false`.** You are on a Windows head, or in a
+unit test running against the neutral assembly. That is what it is for. (Mac Catalyst stopped being
+in this list when the DatadogNet.Mac bindings arrived: it is a real head now.)
 
 **RUM records one view for the whole app.** Page tracking is off, or the app never reaches
 `Application.PageAppearing` — a Blazor Hybrid app, typically, where one MAUI page hosts every route.

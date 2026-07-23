@@ -25,4 +25,9 @@
     <PackageReference Include="DatadogNet.WebViewTracking.iOS" Version="$(DatadogNetiOSVersion)" />
   </ItemGroup>
 
+  <!-- Mac Catalyst has WKWebView, so web view tracking works exactly as on iOS. -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+    <PackageReference Include="DatadogNet.WebViewTracking.Mac" Version="$(DatadogNetMacVersion)" />
+  </ItemGroup>
+
 </Project>

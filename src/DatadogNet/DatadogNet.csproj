@@ -6,11 +6,12 @@
     <PackageId>DatadogNet</PackageId>
     <Title>Datadog for .NET MAUI</Title>
     <Description>
-      One cross-platform Datadog API for .NET MAUI: RUM, Logs, Trace and Session Replay on Android
-      and iOS from shared code, over the native dd-sdk-android and dd-sdk-ios bindings. Restores
-      and no-ops on Windows and Mac Catalyst, so a multi-headed app needs no conditionals.
+      One cross-platform Datadog API for .NET MAUI: RUM, Logs, Trace and Session Replay on
+      Android, iOS and Mac Catalyst from shared code, over the native dd-sdk-android and
+      dd-sdk-ios bindings. Restores and no-ops on Windows, so a multi-headed app needs no
+      conditionals.
     </Description>
-    <PackageTags>datadog;maui;rum;logging;tracing;apm;observability;session-replay;android;ios</PackageTags>
+    <PackageTags>datadog;maui;rum;logging;tracing;apm;observability;session-replay;android;ios;maccatalyst</PackageTags>
   </PropertyGroup>
 
   <!--
@@ -69,6 +70,23 @@
     <PackageReference Include="DatadogNet.Logs.iOS" Version="$(DatadogNetiOSVersion)" />
     <PackageReference Include="DatadogNet.Trace.iOS" Version="$(DatadogNetiOSVersion)" />
     <PackageReference Include="DatadogNet.SessionReplay.iOS" Version="$(DatadogNetiOSVersion)" />
+  </ItemGroup>
+
+  <!--
+    Mac Catalyst. The same five modules as iOS from the DatadogNet.Mac binding packages, which are
+    verbatim copies of the iOS binding definitions over Catalyst-built natives - the maccatalyst
+    head compiles the same Platforms/iOS implementation against them (see Datadog.Facade.props).
+
+    SessionReplay is referenced although Datadog does not support Session Replay on Catalyst: the
+    shared implementation calls into its types, so it has to link. It initializes and records
+    nothing there, which is also what the ISessionReplay docs promise on unsupported platforms.
+  -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+    <PackageReference Include="DatadogNet.Core.Mac" Version="$(DatadogNetMacVersion)" />
+    <PackageReference Include="DatadogNet.RUM.Mac" Version="$(DatadogNetMacVersion)" />
+    <PackageReference Include="DatadogNet.Logs.Mac" Version="$(DatadogNetMacVersion)" />
+    <PackageReference Include="DatadogNet.Trace.Mac" Version="$(DatadogNetMacVersion)" />
+    <PackageReference Include="DatadogNet.SessionReplay.Mac" Version="$(DatadogNetMacVersion)" />
   </ItemGroup>
 
 </Project>

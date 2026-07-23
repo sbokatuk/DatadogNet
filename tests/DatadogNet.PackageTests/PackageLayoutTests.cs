@@ -154,6 +154,29 @@ public class PackageLayoutTests
     }
 
     [Fact]
+    public void Mac_Catalyst_assets_depend_on_every_Datadog_Mac_binding_they_call()
+    {
+        using var package = Packages.OpenPackage("DatadogNet");
+
+        var groups = DependencyGroups(Packages.ReadNuspec(package, "DatadogNet"));
+
+        foreach (var tfm in Packages.ExpectedTargetFrameworks("DatadogNet").Where(t => t.Contains("maccatalyst")))
+        {
+            var declared = groups[tfm].Select(d => d.Id).ToHashSet();
+
+            foreach (var binding in Packages.MacBindingDependencies)
+            {
+                Assert.True(declared.Contains(binding), $"DatadogNet ({tfm}) does not depend on {binding}.");
+            }
+
+            // The maccatalyst head must take the .Mac bindings, never the .iOS ones: the iOS
+            // packages carry no maccatalyst assets, so a stray reference would fail restore in
+            // every consuming app - or worse, resolve to nothing and fail at link.
+            Assert.DoesNotContain(declared, id => id.EndsWith(".iOS", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
     public void Neutral_assets_depend_on_no_platform_binding()
     {
         using var package = Packages.OpenPackage("DatadogNet");
@@ -162,9 +185,9 @@ public class PackageLayoutTests
 
         foreach (var tfm in new[] { "net8.0", "net9.0", "net10.0" })
         {
-            // The whole point of the neutral asset is that a Windows or Mac Catalyst head can
-            // restore it. A stray android or ios binding dependency would make that fail with
-            // NU1202, and nothing in the build would notice - the platform heads would still work.
+            // The whole point of the neutral asset is that a Windows head (or a unit test) can
+            // restore it. A stray platform binding dependency would make that fail with NU1202,
+            // and nothing in the build would notice - the platform heads would still work.
             Assert.Empty(groups[tfm]);
         }
     }

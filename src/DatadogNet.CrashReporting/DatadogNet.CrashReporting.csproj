@@ -34,4 +34,12 @@
     <PackageReference Include="DatadogNet.CrashReporting.iOS" Version="$(DatadogNetiOSVersion)" />
   </ItemGroup>
 
+  <!--
+    Mac Catalyst: the same DatadogCrashReporting framework, built for Catalyst. KSCrash supports
+    macOS, so native crash capture works there the same way it does on iOS.
+  -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+    <PackageReference Include="DatadogNet.CrashReporting.Mac" Version="$(DatadogNetMacVersion)" />
+  </ItemGroup>
+
 </Project>
