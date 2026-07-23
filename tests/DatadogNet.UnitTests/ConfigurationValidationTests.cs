@@ -125,16 +125,24 @@ public class ConfigurationValidationTests
     {
         // 0 is meaningful - it is how you keep a feature configured but silent - so it must not be
         // rejected as "unset".
-        var error = Record.Exception(() => Datadog.Initialize(
-            new DatadogConfiguration
-            {
-                ClientToken = "token",
-                Env = "test",
-                Rum = new RumOptions { ApplicationId = "app-id", SessionSampleRate = rate },
-            }));
+        try
+        {
+            var error = Record.Exception(() => Datadog.Initialize(
+                new DatadogConfiguration
+                {
+                    ClientToken = "token",
+                    Env = "test",
+                    Rum = new RumOptions { ApplicationId = "app-id", SessionSampleRate = rate },
+                }));
 
-        Assert.Null(error);
-
-        Datadog.Stop();
+            Assert.Null(error);
+        }
+        finally
+        {
+            // In a finally, because this is the only test that leaves the static façade
+            // initialised. A failing assertion above would otherwise hand every later test a
+            // configured SDK, turning one failure into a cascade that hides its own cause.
+            Datadog.Stop();
+        }
     }
 }
