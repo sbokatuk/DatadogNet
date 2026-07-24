@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DatadogNet.Maui;
+namespace DatadogNet;
 
 /// <summary>
 /// Adds Datadog instrumentation to a named or typed <c>HttpClient</c>.

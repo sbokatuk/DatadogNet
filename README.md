@@ -2,7 +2,7 @@
 
 [![NuGet](https://img.shields.io/nuget/v/DatadogNet?label=nuget)](https://www.nuget.org/packages/DatadogNet)
 [![release](https://github.com/sbokatuk/DatadogNet/actions/workflows/release.yml/badge.svg)](https://github.com/sbokatuk/DatadogNet/actions/workflows/release.yml)
-[![Targets: net9.0 | net10.0](https://img.shields.io/badge/targets-net9.0%20%7C%20net10.0-512BD4)](#packages)
+[![Targets: net8.0 | net9.0 | net10.0](https://img.shields.io/badge/targets-net8.0%20%7C%20net9.0%20%7C%20net10.0-512BD4)](#packages)
 [![dd-sdk-ios 3.14.0](https://img.shields.io/badge/dd--sdk--ios-3.14.0-632CA6)](https://github.com/DataDog/dd-sdk-ios/releases/tag/3.14.0)
 [![dd-sdk-android 3.12.1](https://img.shields.io/badge/dd--sdk--android-3.12.1-632CA6)](https://github.com/DataDog/dd-sdk-android/releases/tag/3.12.1)
 [![Licence: MIT AND Apache-2.0](https://img.shields.io/badge/licence-MIT%20AND%20Apache--2.0-green)](#licence)
@@ -61,7 +61,7 @@ exceptions are reported — on both platforms.
 
 ## Packages
 
-Four packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.14.0.1` is dd-sdk-ios
+Five packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.14.0.1` is dd-sdk-ios
 **3.14.0**, binding revision **1**, and the Android side of the same release is dd-sdk-android
 **3.12.1**.
 
@@ -72,45 +72,46 @@ Four packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.1
 
 | Package | What it is for | Depends on |
 | --- | --- | --- |
-| **`DatadogNet.Maui`** | **The one you install in a MAUI app.** `UseDatadog`, automatic RUM views from page navigation, an `ILogger` provider, unhandled-exception reporting, `HttpClient` instrumentation. | `DatadogNet` |
-| `DatadogNet` | The API itself: configuration, RUM, Logs, Trace, Session Replay, consent, user and account info, `DatadogHttpMessageHandler`. Usable from a plain .NET Android or .NET iOS app with no MAUI. | — |
+| **`DatadogNet.Maui`** | **The one you install in a MAUI app.** `UseDatadog`, automatic RUM views from page navigation, an `ILogger` provider, unhandled-exception reporting, `HttpClient` instrumentation. | `DatadogNet`, `DatadogNet.Extensions.DependencyInjection` |
+| `DatadogNet` | The API itself: configuration, RUM, Logs, Trace, Session Replay, consent, user and account info, `DatadogHttpMessageHandler`. Usable from a plain .NET Android or .NET iOS app with no MAUI, and dependency-free on its neutral heads. | — |
+| `DatadogNet.Extensions.DependencyInjection` | The `Microsoft.Extensions` glue without MAUI: `AddDatadog` on `IServiceCollection` and `ILoggingBuilder`, and `AddDatadogTracking` on `IHttpClientBuilder`. `DatadogNet.Maui` builds on it; reference it directly from a plain app, a service or a test host. | `DatadogNet` |
 | `DatadogNet.CrashReporting` | Crash reporting. Separate because it installs a signal handler. | `DatadogNet` |
 | `DatadogNet.WebView` | Bridges RUM and Logs out of a web view, for hybrid apps. | `DatadogNet` |
 
 Most apps need one or two lines:
 
 ```xml
-<PackageReference Include="DatadogNet.Maui" Version="3.14.0.1" />
-<PackageReference Include="DatadogNet.CrashReporting" Version="3.14.0.1" />
+<PackageReference Include="DatadogNet.Maui" Version="3.14.0.4" />
+<PackageReference Include="DatadogNet.CrashReporting" Version="3.14.0.4" />
 ```
 
-**Target frameworks.** `DatadogNet`, `DatadogNet.CrashReporting` and `DatadogNet.WebView` ship
-twelve: `net8.0`, `net9.0` and `net10.0`, each with its `-android`, `-ios` and `-maccatalyst`
-head — `net8.0-android34.0`, `net8.0-ios18.0`, `net8.0-maccatalyst18.0`, `net9.0-android35.0`,
-`net9.0-ios18.0`, `net9.0-maccatalyst18.0`, `net10.0-android36.0`, `net10.0-ios26.0`,
-`net10.0-maccatalyst26.0`. `DatadogNet.Maui` ships the nine platform ones only.
+**Target frameworks.** `DatadogNet`, `DatadogNet.Extensions.DependencyInjection`,
+`DatadogNet.CrashReporting` and `DatadogNet.WebView` ship twelve: `net8.0`, `net9.0` and
+`net10.0`, each with its `-android`, `-ios` and `-maccatalyst` head — `net8.0-android34.0`,
+`net8.0-ios18.0`, `net8.0-maccatalyst18.0`, `net9.0-android35.0`, `net9.0-ios18.0`,
+`net9.0-maccatalyst18.0`, `net10.0-android36.0`, `net10.0-ios26.0`, `net10.0-maccatalyst26.0`.
+`DatadogNet.Maui` ships twelve too: the nine platform heads plus a `-windows10.0.19041.0` stub
+head per band, and no neutral asset.
 
 The Mac Catalyst head is real, not a shim: it compiles the same implementation the iOS head uses,
 over the [DatadogNet.Mac](https://github.com/sbokatuk/DatadogNet.Mac) bindings — dd-sdk-ios built
 from source for Catalyst. Datadog's own support for Catalyst is *partial* (macOS 12+), and Session
 Replay records nothing there, so `SessionReplayOptions` is accepted and does nothing on a Mac.
 
-The plain `net9.0`/`net10.0` assets are not padding. A MAUI app routinely also has a Windows head,
+The plain `net8.0`/`net9.0`/`net10.0` assets are not padding. A MAUI app routinely also has a Windows head,
 and NuGet resolves each head independently; without a platform-neutral asset the reference has to
 be guarded by target platform in every project that has one. With it, the reference is
 unconditional and the Windows head links an implementation whose every member is a documented
 no-op — so shared code that reports a RUM view compiles and runs there, and in a unit test, without
 a single `#if`.
 
-`DatadogNet.Maui` is the exception and cannot be otherwise: `Microsoft.Maui.Controls` is a workload
-metapackage with no `lib/` assets, so there is no neutral MAUI to compile a no-op against.
-A multi-headed app guards that one reference:
-
-```xml
-<ItemGroup Condition="'$([MSBuild]::GetTargetPlatformIdentifier($(TargetFramework)))' == 'android' or '$([MSBuild]::GetTargetPlatformIdentifier($(TargetFramework)))' == 'ios'">
-  <PackageReference Include="DatadogNet.Maui" Version="3.14.0.1" />
-</ItemGroup>
-```
+`DatadogNet.Maui` cannot carry a neutral asset — `Microsoft.Maui.Controls` is a workload
+metapackage with no `lib/` assets, so there is no neutral MAUI to compile a no-op against — so it
+ships a **Windows stub head** instead: `UseDatadog` compiles and runs on a Windows head and every
+call lands in the core package's documented no-ops. The upshot is the same either way — every
+package in this set, `DatadogNet.Maui` included, is referenced with **no platform condition**.
+(Releases up to `3.14.0.3` had no Windows head, so on those the `DatadogNet.Maui` reference needs
+the target-platform guard this section used to show.)
 
 > **net8 has one limitation, and it is worth reading before you rely on it.** The net8 assets work
 > — the device checks run against them on both a simulator and an emulator — but a .NET **MAUI** app
@@ -150,6 +151,12 @@ has the API 34 *reference* packs and compiles it, then fails at packaging with `
 it has no API 34 *runtime* packs — those belong to the .NET 8 workload. iOS has no equivalent
 constraint: the .NET 9 band builds `net8.0-ios18.0` outright.
 
+> **net8 sunset.** The net8 heads are already past their platform support window — the net8
+> mobile workloads left support with MAUI 8 on 14 May 2025 — and ship for the plain (non-MAUI)
+> apps that still target them, verified by the device checks. So the decision does not persist by
+> inertia: **the net8 heads are dropped in the first release after .NET 8 itself leaves support
+> on 10 November 2026**, in step with all three binding repositories.
+
 **Minimum OS**: Android API **23**, iOS **12.2**.
 
 > The dd-sdk-android `.aar` manifests declare API 21, and `DatadogNet.Android`'s README records
@@ -163,7 +170,7 @@ constraint: the .NET 9 band builds `net8.0-ios18.0` outright.
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DatadogNet.Maui" Version="3.14.0.1" />
+  <PackageReference Include="DatadogNet.Maui" Version="3.14.0.4" />
 </ItemGroup>
 ```
 
@@ -171,6 +178,22 @@ constraint: the .NET 9 band builds `net8.0-ios18.0` outright.
 <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23</SupportedOSPlatformVersion>
 <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">12.2</SupportedOSPlatformVersion>
 ```
+
+**Without MAUI** — a plain .NET Android or iOS app, a background service, or any
+`Microsoft.Extensions` host — reference `DatadogNet.Extensions.DependencyInjection` instead and
+make the same one call on your service collection:
+
+```csharp
+builder.Services.AddDatadog(new DatadogConfiguration { /* as below */ });
+builder.Logging.AddDatadog();          // the ILogger provider, if you want it
+builder.Services
+    .AddHttpClient<OrderService>()
+    .AddDatadogTracking();             // same HttpClient instrumentation as MAUI
+```
+
+`AddDatadog` initialises the SDK and registers `IRumMonitor`, `IDatadogLogs`, `IDatadogLogger`,
+`IDatadogTracer` and `ISessionReplay` for constructor injection; an overload without the
+configuration registers only, for apps that initialise the SDK even earlier.
 
 ---
 
@@ -366,7 +389,9 @@ the process and so is otherwise invisible.
 
 **Dependency injection.** `IRumMonitor`, `IDatadogLogs`, `IDatadogLogger`, `IDatadogTracer` and
 `ISessionReplay` are registered as singletons, so a view-model can depend on the piece it uses and be
-given a substitute in a test rather than reaching for the static.
+given a substitute in a test rather than reaching for the static. The registrations, the `ILogger`
+provider and `AddDatadogTracking` all live in `DatadogNet.Extensions.DependencyInjection` — which
+arrives with this package, and works alone in a host that has no MAUI.
 
 ---
 
@@ -455,14 +480,14 @@ order, apart from the middle image level above.
 ## How this repository works
 
 ```
-nuget.org: DatadogNet.iOS 3.14.0.1        nuget.org: DatadogNet.Android 3.12.1.1
+nuget.org: DatadogNet.iOS 3.14.0.3        nuget.org: DatadogNet.Android 3.12.1.3
         │  (dd-sdk-ios 3.14.0)                    │  (dd-sdk-android 3.12.1)
         └──────────────┬──────────────────────────┘
                        ▼
         src/DatadogNet/Platforms/{iOS,Android,Unsupported}/
                        │  one shared API, three implementations, one selected per target framework
                        ▼
-        src/DatadogNet.{CrashReporting,WebView,Maui}/
+        src/DatadogNet.{Extensions.DependencyInjection,CrashReporting,WebView,Maui}/
                        │  build/BuildNugets.sh — pack twice (net9 band, net10 band), then merge
                        ▼
                 artifacts/*.nupkg  ──►  nuget.org
@@ -497,8 +522,9 @@ carrying the dependency group across with them. Both binding repositories do the
 | Path | What |
 | --- | --- |
 | `src/DatadogNet/` | The API. Shared sources declare it; `Platforms/<name>/` supplies the bodies. |
-| `src/DatadogNet/Platforms/Unsupported/` | The no-op implementation the neutral `net9.0`/`net10.0` assemblies link. |
-| `src/Datadog.Facade.props` | Everything the four projects share, so each `.csproj` is its identity and its dependencies. |
+| `src/DatadogNet/Platforms/Unsupported/` | The no-op implementation the neutral `net8.0`/`net9.0`/`net10.0` assemblies link. |
+| `src/DatadogNet.Extensions.DependencyInjection/` | The `Microsoft.Extensions` glue: `AddDatadog`, the `ILogger` provider, `AddDatadogTracking`. One set of shared sources — it only calls the core API, which is identical across heads. |
+| `src/Datadog.Facade.props` | Everything the five projects share, so each `.csproj` is its identity and its dependencies. |
 | `build/packages.tsv` | The package set. The build script, both workflows, the tests and the device runners all read it. |
 | `tests/DatadogNet.PackageTests/` | Asserts the shape of the packed `.nupkg`s. |
 | `tests/DatadogNet.DeviceTests/` | **One** app, two heads, one shared list of checks — run on an Android emulator and an iOS simulator against the packed packages. |
@@ -528,11 +554,11 @@ dotnet test tests/DatadogNet.PackageTests
 Run the device checks against the packed packages:
 
 ```bash
-./.github/scripts/run-simulator-tests.sh 3.14.0.1 net8.0-ios18.0
+./.github/scripts/run-simulator-tests.sh 3.14.0.4 net8.0-ios18.0
 ```
 
 ```bash
-./.github/scripts/run-emulator-tests.sh 3.14.0.1 net8.0-android34.0
+./.github/scripts/run-emulator-tests.sh 3.14.0.4 net8.0-android34.0
 ```
 
 Any of the six platform target frameworks works. CI runs net8 and net10 — the oldest asset set, and
@@ -577,7 +603,7 @@ is a two-line edit and a test run. The exception is a major: see the note on 3.x
 
 ## Releasing
 
-Tag it. `v3.14.0.1` builds, tests, publishes all four packages to nuget.org via trusted publishing,
+Tag it. `v3.14.0.4` builds, tests, publishes all five packages to nuget.org via trusted publishing,
 and creates a GitHub release.
 
 Pull requests publish a `-beta.<pr>.<run>` prerelease of the whole set.
@@ -616,7 +642,10 @@ NuGet resolves the higher version and warns. The result works — it is what the
 against. Add `<NoWarn>$(NoWarn);NU1608</NoWarn>` or pin the versions yourself.
 
 **A framework fails to load, or `NoClassDefFoundError`.** Usually a partially restored package. Clear
-the cached copies and restore again: `rm -rf ~/.nuget/packages/datadognet*`.
+the cached copies and restore again: `rm -rf ~/.nuget/packages/datadognet*`. A `ClassNotFoundException`
+**only in Release** on Android means R8 shrank a class reached only through JNI —
+`DatadogNet.WebView` and `DatadogNet.CrashReporting` ship consumer keep-rules for theirs, so update
+the packages first.
 
 **`'Trace' is an ambiguous reference`, or `'Logs' does not exist in the namespace`.** These are
 `DatadogNet.Android` symptoms, from calling the bindings directly. The façade puts everything on

@@ -43,6 +43,10 @@ public sealed class AppDelegate : UIApplicationDelegate
 #pragma warning restore CA1422
         Window.MakeKeyAndVisible();
 
+        // WKWebView must be created on the main thread, which is where the checks run.
+        SmokeTests.PlatformWebView = () => new WebKit.WKWebView(
+            CoreGraphics.CGRect.Empty, new WebKit.WKWebViewConfiguration());
+
         // On the main thread deliberately: the Datadog SDK instruments UIKit and DDRUMMonitor
         // asserts it is reached from the main thread. Nothing here blocks long enough to trip the
         // watchdog.

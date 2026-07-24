@@ -43,14 +43,16 @@
 
             <Label Text="Session Replay and identity" FontSize="20" FontAttributes="Bold" Margin="0,12,0,0" />
 
+            <Button Text="Start / resume recording" Clicked="OnResumeRecording" />
             <Button Text="Pause recording" Clicked="OnPauseRecording" />
-            <Button Text="Resume recording" Clicked="OnResumeRecording" />
+            <Button Text="Cycle tracking consent" Clicked="OnCycleConsent" />
             <Button Text="Sign in as a user" Clicked="OnSignIn" />
             <Button Text="Sign out" Clicked="OnSignOut" />
 
             <Label Text="Navigation" FontSize="20" FontAttributes="Bold" Margin="0,12,0,0" />
 
             <Button Text="Push the details page" Clicked="OnPushDetails" />
+            <Button Text="Push a tracked web view" Clicked="OnPushWebView" />
 
             <Label Text="Output" FontSize="20" FontAttributes="Bold" Margin="0,12,0,0" />
 

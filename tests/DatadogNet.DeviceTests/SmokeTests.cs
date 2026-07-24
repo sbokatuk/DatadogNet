@@ -51,6 +51,14 @@ public static class SmokeTests
     /// <summary>Writes a line to the platform log. Set by each head.</summary>
     public static Action<string> Reporter { get; set; } = _ => { };
 
+    /// <summary>
+    /// Creates this platform's web view. Set by each head, like <see cref="Reporter"/>, so this
+    /// file stays free of platform types: the check needs a real web view to install the bridge
+    /// into, and what that is — <c>Android.Webkit.WebView</c> or <c>WKWebView</c> — is the one
+    /// thing about it the shared code must not know.
+    /// </summary>
+    public static Func<object>? PlatformWebView { get; set; }
+
     /// <summary>Every check, in the order they must run.</summary>
     public static SmokeTest[] All =>
     [
@@ -74,6 +82,7 @@ public static class SmokeTests
         new("reports an http request as a RUM resource", ReportsHttpRequest),
         new("starts and stops Session Replay recording", ControlsSessionReplay),
         new("enables crash reporting", EnablesCrashReporting),
+        new("installs and removes the web view bridge", BridgesWebView),
         new("stops the RUM session and the SDK instance", StopsCleanly),
     ];
 
@@ -628,6 +637,29 @@ public static class SmokeTests
         // its native handler installs.
         CrashReporting.Enable();
         CrashReporting.Enable();
+    }
+
+    private static void BridgesWebView()
+    {
+        // The argument contract first, platform-free: both of these throw before the platform
+        // dispatch, so they prove the shared validation without a web view existing.
+        Throws<ArgumentException>(
+            () => DatadogWebViewTracking.Enable(new object(), ["example.com"]),
+            "Enable with an object that is not this platform's web view");
+        Throws<ArgumentException>(
+            () => DatadogWebViewTracking.Enable(new object(), []),
+            "Enable with an empty allowlist");
+
+        // Then the real thing: a platform web view from the head's factory, bridge in, bridge out.
+        // This is the only execution DatadogNet.WebView gets anywhere - the package tests check its
+        // shape, but only a device can load the native module behind it.
+        var webView = (PlatformWebView
+            ?? throw new InvalidOperationException("The platform head did not set PlatformWebView."))();
+
+        DatadogWebViewTracking.Enable(webView, ["example.com"], logsSampleRate: 100);
+        DatadogWebViewTracking.Disable(webView);
+
+        Report("bridge installed and removed on a real web view");
     }
 
     private static void StopsCleanly()

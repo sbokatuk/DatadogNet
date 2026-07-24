@@ -58,6 +58,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check README versions
+        run: ./build/CheckReadmeVersions.sh
+
       - name: Select Xcode
         uses: ./.github/actions/select-xcode
 

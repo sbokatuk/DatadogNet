@@ -21,10 +21,18 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <!--
+      The concrete container and client factory, for the DependencyInjection tests: the package
+      under test references only the abstractions, but resolving what it registered needs the real
+      ServiceProvider, AddLogging and AddHttpClient.
+    -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../src/DatadogNet/DatadogNet.csproj" />
+    <ProjectReference Include="../../src/DatadogNet.Extensions.DependencyInjection/DatadogNet.Extensions.DependencyInjection.csproj" />
   </ItemGroup>
 
 </Project>

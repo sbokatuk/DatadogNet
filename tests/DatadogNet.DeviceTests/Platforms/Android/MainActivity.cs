@@ -21,6 +21,10 @@ public sealed class MainActivity : Activity
     {
         base.OnCreate(savedInstanceState);
 
+        // A WebView must be constructed on a Looper thread, which the UI thread the checks run on
+        // is. The activity itself is the Context.
+        SmokeTests.PlatformWebView = () => new Android.Webkit.WebView(this);
+
         // On the main thread, as on iOS, and for the same reason: the SDK's UI instrumentation
         // expects it.
         _ = TestRunner.RunAndReportAsync(

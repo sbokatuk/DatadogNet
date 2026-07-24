@@ -243,6 +243,22 @@ public class PackageLayoutTests
         Assert.Null(package.GetEntry("lib/net10.0/DatadogNet.Maui.dll"));
     }
 
+    [Theory]
+    [InlineData("DatadogNet.WebView", "datadog-webview.pro")]
+    [InlineData("DatadogNet.CrashReporting", "datadog-ndk.pro")]
+    public void Android_reflection_entry_points_ship_consumer_keep_rules(string id, string rules)
+    {
+        using var package = Packages.OpenPackage(id);
+
+        // The Java classes these packages call - WebViewTracking, NdkCrashReports - are reached
+        // from .NET through JNI alone, so a consumer's R8 shrink removes them and Enable throws
+        // ClassNotFoundException in Release only. The keep-rules ride buildTransitive/ and cannot
+        // arrive through the binding packages: this package's dependency on them excludes build
+        // assets, which is why the rules are duplicated here and why this asserts they stay.
+        Assert.NotNull(package.GetEntry($"buildTransitive/{id}.targets"));
+        Assert.NotNull(package.GetEntry($"buildTransitive/{rules}"));
+    }
+
     /// <summary>Maps each target framework to the dependencies its nuspec group declares.</summary>
     private static Dictionary<string, IReadOnlyList<(string Id, string Version)>> DependencyGroups(string nuspec)
     {

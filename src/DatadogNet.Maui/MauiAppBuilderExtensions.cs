@@ -1,7 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
-
 namespace DatadogNet.Maui;
 
 /// <summary>
@@ -70,17 +66,15 @@ public static partial class MauiAppBuilderExtensions
         Datadog.Initialize(configuration);
         DatadogTracking.Configure(options);
 
-        // TryAdd rather than Add throughout: an app that has already registered its own IRumMonitor
-        // - a decorator that adds attributes, or a fake in a test host - keeps it.
-        builder.Services.TryAddSingleton(_ => Datadog.Rum);
-        builder.Services.TryAddSingleton(_ => Datadog.Logs);
-        builder.Services.TryAddSingleton(_ => Datadog.Tracer);
-        builder.Services.TryAddSingleton(_ => Datadog.SessionReplay);
-        builder.Services.TryAddSingleton(_ => Datadog.Logs.CreateLogger(options.Logger));
+        // The registrations and the logging provider live in
+        // DatadogNet.Extensions.DependencyInjection, shared with hosts that have no MAUI. TryAdd
+        // semantics throughout, so an app that has already registered its own IRumMonitor - a
+        // decorator that adds attributes, or a fake in a test host - keeps it.
+        builder.Services.AddDatadog(options.Logger);
 
         if (options.AddLoggingProvider)
         {
-            builder.Logging.AddDatadog(options);
+            builder.Logging.AddDatadog(options.Logger, options.MinimumLogLevel);
         }
 
         if (options.TrackUnhandledExceptions)
@@ -94,31 +88,6 @@ public static partial class MauiAppBuilderExtensions
             // stays null until the platform creates the app object.
             AttachNavigationTracking(builder);
         }
-
-        return builder;
-    }
-
-    /// <summary>
-    /// Sends <c>Microsoft.Extensions.Logging</c> output to Datadog.
-    /// </summary>
-    /// <remarks>
-    /// Called for you by <see cref="UseDatadog"/> unless
-    /// <see cref="DatadogMauiOptions.AddLoggingProvider"/> is off. Public so an app that configures
-    /// logging separately can add it alongside its other providers.
-    /// </remarks>
-    public static ILoggingBuilder AddDatadog(this ILoggingBuilder builder, DatadogMauiOptions? options = null)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        var effective = options ?? new DatadogMauiOptions();
-
-        // The two-type-argument overload, not ServiceDescriptor.Singleton<ILoggerProvider>(factory):
-        // TryAddEnumerable de-duplicates on the descriptor's implementation *type*, and a
-        // factory-only descriptor has none - so it throws "Implementation type cannot be inferred"
-        // rather than registering anything.
-        builder.Services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<ILoggerProvider, DatadogLoggerProvider>(
-                _ => new DatadogLoggerProvider(effective)));
 
         return builder;
     }

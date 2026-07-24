@@ -6,10 +6,11 @@
     <PackageId>DatadogNet.CrashReporting</PackageId>
     <Title>Datadog crash reporting for .NET MAUI</Title>
     <Description>
-      Crash reporting for DatadogNet: PLCrashReporter on iOS, and native (NDK) crash capture on
-      Android. Separate from DatadogNet because it installs a signal handler.
+      Crash reporting for DatadogNet: KSCrash on iOS and Mac Catalyst (PLCrashReporter in the 2.x
+      line), and native (NDK) crash capture on Android. Separate from DatadogNet because it
+      installs a signal handler.
     </Description>
-    <PackageTags>datadog;maui;crash;crash-reporting;plcrashreporter;ndk;android;ios</PackageTags>
+    <PackageTags>datadog;maui;crash;crash-reporting;kscrash;ndk;android;ios;maccatalyst</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -40,6 +41,16 @@
   -->
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
     <PackageReference Include="DatadogNet.CrashReporting.Mac" Version="$(DatadogNetMacVersion)" />
+  </ItemGroup>
+
+  <!--
+    Consumer R8/ProGuard keep-rules for the Android head. Packed under buildTransitive/ so NuGet
+    imports the .targets into every consuming project; the rules attach only where R8 runs. See
+    the files' own comments for why they exist and why they are duplicated from the binding.
+  -->
+  <ItemGroup>
+    <None Include="buildTransitive/DatadogNet.CrashReporting.targets" Pack="true" PackagePath="buildTransitive" />
+    <None Include="buildTransitive/datadog-ndk.pro" Pack="true" PackagePath="buildTransitive" />
   </ItemGroup>
 
 </Project>

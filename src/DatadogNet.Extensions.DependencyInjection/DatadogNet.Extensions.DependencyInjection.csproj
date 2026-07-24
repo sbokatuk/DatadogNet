@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../Datadog.Facade.props" />
+
+  <PropertyGroup>
+    <!--
+      The Microsoft.Extensions glue, split out of DatadogNet.Maui so a host without MAUI - a plain
+      .NET Android or iOS app, a background service, a test host - gets the same wiring: the DI
+      registrations, the ILogger provider and AddDatadogTracking need nothing from MAUI, and
+      keeping them in the MAUI package made every non-MAUI consumer hand-copy them.
+
+      It is equally deliberate that this is not part of DatadogNet itself: the core package has no
+      NuGet dependencies on its neutral head, and an app that calls the static API directly should
+      not restore Microsoft.Extensions.Http to do it.
+
+      No Platforms/ directory, unlike the other packages: everything here talks to the core API,
+      which is identical across every head, so one set of shared sources compiles into all of them.
+    -->
+    <PackageId>DatadogNet.Extensions.DependencyInjection</PackageId>
+    <Title>Datadog Microsoft.Extensions integration for .NET</Title>
+    <Description>
+      Wires DatadogNet into any Microsoft.Extensions host, no MAUI required: AddDatadog registers
+      IRumMonitor, IDatadogLogs, IDatadogLogger, IDatadogTracer and ISessionReplay for constructor
+      injection, an ILogger provider forwards Microsoft.Extensions.Logging output to Datadog, and
+      AddDatadogTracking instruments a named or typed HttpClient. DatadogNet.Maui builds on this
+      package; reference it directly from a plain .NET Android or iOS app, a service, or a test
+      host.
+    </Description>
+    <PackageTags>datadog;dependency-injection;ilogger;httpclient;rum;logging;tracing;observability;android;ios;maccatalyst</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet/DatadogNet.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Declared explicitly rather than ridden transitively: DependencyInjection.Abstractions is what
+      supplies IServiceCollection, Logging supplies ILoggingBuilder, and Http supplies
+      IHttpClientBuilder - each is extended by a public method here, so each is a direct contract
+      of this package rather than an implementation detail of a neighbour.
+    -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

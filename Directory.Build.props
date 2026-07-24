@@ -28,7 +28,7 @@
       docs/native-surface.md for what is covered.
     -->
     <DatadogNativeVersion>3.14.0</DatadogNativeVersion>
-    <DatadogBindingRevision>3</DatadogBindingRevision>
+    <DatadogBindingRevision>4</DatadogBindingRevision>
     <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
 
     <!--
@@ -38,15 +38,16 @@
       covered by any compatibility promise, and a floating reference would turn a change there into
       a build break in somebody's app rather than here.
 
-      Revision .2 on both, and this façade depends on what that revision added. The convenience
-      layers now carry the members this repository used to shim for itself: the per-value attribute
-      converters (DatadogAttributes.ToJava / ToNSObject), GetCurrentSessionIdAsync on both monitors,
-      header injection on both tracers, and GetTraceId / GetSpanId on iOS - which is where the
-      trace-id reassembly now lives. Those shims have been deleted here rather than left to drift,
-      so .1 will not build this. See docs/release-notes/3.14.0.2.md.
+      The API floor is what revision .2 added: the convenience layers carry the members this
+      repository used to shim for itself - the per-value attribute converters
+      (DatadogAttributes.ToJava / ToNSObject), GetCurrentSessionIdAsync on both monitors, header
+      injection on both tracers, and GetTraceId / GetSpanId on iOS, which is where the trace-id
+      reassembly lives - so anything below .2 will not build this. The pins sit on the current
+      releases above that floor; the .3 (and Mac .2) revisions are documentation, packaging and
+      supply-chain releases over the same native SDKs and the same API.
     -->
-    <DatadogNetiOSVersion>3.14.0.2</DatadogNetiOSVersion>
-    <DatadogNetAndroidVersion>3.12.1.2</DatadogNetAndroidVersion>
+    <DatadogNetiOSVersion>3.14.0.3</DatadogNetiOSVersion>
+    <DatadogNetAndroidVersion>3.12.1.3</DatadogNetAndroidVersion>
     <DatadogAndroidNativeVersion>3.12.1</DatadogAndroidNativeVersion>
 
     <!--
@@ -57,7 +58,7 @@
       implementation to be honest about what it calls into; the fourth component is each
       repository's own.
     -->
-    <DatadogNetMacVersion>3.14.0.1</DatadogNetMacVersion>
+    <DatadogNetMacVersion>3.14.0.2</DatadogNetMacVersion>
   </PropertyGroup>
 
   <!--
@@ -98,11 +99,13 @@
     <DatadogSdkBand Condition=" '$(DatadogSdkBand)' == '' ">net9</DatadogSdkBand>
 
     <DatadogNetVersionMoniker Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0;net9.0</DatadogNetVersionMoniker>
+    <DatadogWindowsTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-windows10.0.19041.0;net9.0-windows10.0.19041.0</DatadogWindowsTargetFramework>
     <DatadogAndroidTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-android34.0;net9.0-android35.0</DatadogAndroidTargetFramework>
     <DatadogiOSTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-ios18.0;net9.0-ios18.0</DatadogiOSTargetFramework>
     <DatadogMacTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-maccatalyst18.0;net9.0-maccatalyst18.0</DatadogMacTargetFramework>
 
     <DatadogNetVersionMoniker Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0</DatadogNetVersionMoniker>
+    <DatadogWindowsTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-windows10.0.19041.0</DatadogWindowsTargetFramework>
     <DatadogAndroidTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-android36.0</DatadogAndroidTargetFramework>
     <DatadogiOSTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-ios26.0</DatadogiOSTargetFramework>
     <DatadogMacTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-maccatalyst26.0</DatadogMacTargetFramework>
@@ -184,6 +187,18 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <ContinuousIntegrationBuild Condition=" '$(GITHUB_ACTIONS)' == 'true' ">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!--
+    Surface the curated release notes on nuget.org. docs/release-notes/<version>.md already feeds
+    the GitHub release; packing it here is what makes it reach the .nupkg, so nuget.org stops
+    showing empty release notes. A version with no curated file - a PR prerelease of unreleased
+    work, typically - falls back to the releases page rather than shipping nothing.
+  -->
+  <PropertyGroup>
+    <DatadogReleaseNotesFile>$(MSBuildThisFileDirectory)docs/release-notes/$(VersionPrefix).md</DatadogReleaseNotesFile>
+    <PackageReleaseNotes Condition=" Exists('$(DatadogReleaseNotesFile)') ">$([System.IO.File]::ReadAllText('$(DatadogReleaseNotesFile)'))</PackageReleaseNotes>
+    <PackageReleaseNotes Condition=" '$(PackageReleaseNotes)' == '' ">https://github.com/sbokatuk/DatadogNet/releases/tag/v$(VersionPrefix)</PackageReleaseNotes>
   </PropertyGroup>
 
 </Project>
