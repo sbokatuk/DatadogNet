@@ -81,8 +81,8 @@ Four packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.1
 Most apps need one or two lines:
 
 ```xml
-<PackageReference Include="DatadogNet.Maui" Version="3.14.0.3" />
-<PackageReference Include="DatadogNet.CrashReporting" Version="3.14.0.3" />
+<PackageReference Include="DatadogNet.Maui" Version="3.14.0.4" />
+<PackageReference Include="DatadogNet.CrashReporting" Version="3.14.0.4" />
 ```
 
 **Target frameworks.** `DatadogNet`, `DatadogNet.Extensions.DependencyInjection`,
@@ -170,7 +170,7 @@ constraint: the .NET 9 band builds `net8.0-ios18.0` outright.
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DatadogNet.Maui" Version="3.14.0.3" />
+  <PackageReference Include="DatadogNet.Maui" Version="3.14.0.4" />
 </ItemGroup>
 ```
 
@@ -554,11 +554,11 @@ dotnet test tests/DatadogNet.PackageTests
 Run the device checks against the packed packages:
 
 ```bash
-./.github/scripts/run-simulator-tests.sh 3.14.0.3 net8.0-ios18.0
+./.github/scripts/run-simulator-tests.sh 3.14.0.4 net8.0-ios18.0
 ```
 
 ```bash
-./.github/scripts/run-emulator-tests.sh 3.14.0.3 net8.0-android34.0
+./.github/scripts/run-emulator-tests.sh 3.14.0.4 net8.0-android34.0
 ```
 
 Any of the six platform target frameworks works. CI runs net8 and net10 — the oldest asset set, and
@@ -603,7 +603,7 @@ is a two-line edit and a test run. The exception is a major: see the note on 3.x
 
 ## Releasing
 
-Tag it. `v3.14.0.3` builds, tests, publishes all four packages to nuget.org via trusted publishing,
+Tag it. `v3.14.0.4` builds, tests, publishes all four packages to nuget.org via trusted publishing,
 and creates a GitHub release.
 
 Pull requests publish a `-beta.<pr>.<run>` prerelease of the whole set.

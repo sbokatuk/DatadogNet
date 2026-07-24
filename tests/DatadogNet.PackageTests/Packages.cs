@@ -4,7 +4,7 @@ namespace DatadogNet.PackageTests;
 
 /// <summary>What one package in this repository is supposed to be.</summary>
 /// <param name="Id">The NuGet package id, which is also its directory under <c>src/</c>.</param>
-/// <param name="Heads">Which target-framework families it ships — <c>all</c> or <c>mobile</c>.</param>
+/// <param name="Heads">Which target-framework families it ships — <c>all</c> or <c>maui</c>.</param>
 /// <param name="Dependencies">Other packages in this repository it must declare a dependency on.</param>
 public sealed record PackageSpec(string Id, string Heads, IReadOnlyList<string> Dependencies);
 
@@ -59,15 +59,15 @@ public static class Packages
         "net8.0-android34.0",
         "net8.0-ios18.0",
         "net8.0-maccatalyst18.0",
-        "net8.0-windows10.0.19041.0",
+        "net8.0-windows10.0.19041",
         "net9.0-android35.0",
         "net9.0-ios18.0",
         "net9.0-maccatalyst18.0",
-        "net9.0-windows10.0.19041.0",
+        "net9.0-windows10.0.19041",
         "net10.0-android36.0",
         "net10.0-ios26.0",
         "net10.0-maccatalyst26.0",
-        "net10.0-windows10.0.19041.0",
+        "net10.0-windows10.0.19041",
     ];
 
     /// <summary>The DatadogNet.Android packages the android assets must depend on.</summary>
