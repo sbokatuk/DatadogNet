@@ -38,15 +38,16 @@
       covered by any compatibility promise, and a floating reference would turn a change there into
       a build break in somebody's app rather than here.
 
-      Revision .2 on both, and this façade depends on what that revision added. The convenience
-      layers now carry the members this repository used to shim for itself: the per-value attribute
-      converters (DatadogAttributes.ToJava / ToNSObject), GetCurrentSessionIdAsync on both monitors,
-      header injection on both tracers, and GetTraceId / GetSpanId on iOS - which is where the
-      trace-id reassembly now lives. Those shims have been deleted here rather than left to drift,
-      so .1 will not build this. See docs/release-notes/3.14.0.2.md.
+      The API floor is what revision .2 added: the convenience layers carry the members this
+      repository used to shim for itself - the per-value attribute converters
+      (DatadogAttributes.ToJava / ToNSObject), GetCurrentSessionIdAsync on both monitors, header
+      injection on both tracers, and GetTraceId / GetSpanId on iOS, which is where the trace-id
+      reassembly lives - so anything below .2 will not build this. The pins sit on the current
+      releases above that floor; the .3 (and Mac .2) revisions are documentation, packaging and
+      supply-chain releases over the same native SDKs and the same API.
     -->
-    <DatadogNetiOSVersion>3.14.0.2</DatadogNetiOSVersion>
-    <DatadogNetAndroidVersion>3.12.1.2</DatadogNetAndroidVersion>
+    <DatadogNetiOSVersion>3.14.0.3</DatadogNetiOSVersion>
+    <DatadogNetAndroidVersion>3.12.1.3</DatadogNetAndroidVersion>
     <DatadogAndroidNativeVersion>3.12.1</DatadogAndroidNativeVersion>
 
     <!--
@@ -57,7 +58,7 @@
       implementation to be honest about what it calls into; the fourth component is each
       repository's own.
     -->
-    <DatadogNetMacVersion>3.14.0.1</DatadogNetMacVersion>
+    <DatadogNetMacVersion>3.14.0.2</DatadogNetMacVersion>
   </PropertyGroup>
 
   <!--

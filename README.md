@@ -480,7 +480,7 @@ order, apart from the middle image level above.
 ## How this repository works
 
 ```
-nuget.org: DatadogNet.iOS 3.14.0.2        nuget.org: DatadogNet.Android 3.12.1.2
+nuget.org: DatadogNet.iOS 3.14.0.3        nuget.org: DatadogNet.Android 3.12.1.3
         │  (dd-sdk-ios 3.14.0)                    │  (dd-sdk-android 3.12.1)
         └──────────────┬──────────────────────────┘
                        ▼
