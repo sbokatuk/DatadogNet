@@ -14,9 +14,18 @@ namespace DatadogNet.Maui;
 /// memory address.
 /// </para>
 /// </remarks>
-internal static class UnhandledExceptionReporting
+internal static partial class UnhandledExceptionReporting
 {
     private static readonly object Gate = new();
+
+    /// <summary>
+    /// Exceptions already reported, so one failure surfacing through two hooks — a marshalled
+    /// UIKit-callback exception that then terminates the process, say — is one RUM error, not two.
+    /// Weak on the exception, so tracking reported failures keeps none of them alive.
+    /// </summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Exception, object> Reported = [];
+
+    private static readonly object ReportedMarker = new();
 
     private static bool enabled;
 
@@ -33,8 +42,16 @@ internal static class UnhandledExceptionReporting
 
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+
+            // AppDomain.UnhandledException is not the whole story on either platform: an exception
+            // leaving a native callback can be marshalled or rethrown at the boundary and
+            // terminate the app without ever reaching it. Each head adds the hook that sees those.
+            EnablePlatformHooks();
         }
     }
+
+    /// <summary>Adds the platform's own last-chance hook. Supplied per head.</summary>
+    private static partial void EnablePlatformHooks();
 
     private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
@@ -62,6 +79,16 @@ internal static class UnhandledExceptionReporting
     {
         try
         {
+            lock (Gate)
+            {
+                if (Reported.TryGetValue(exception, out _))
+                {
+                    return;
+                }
+
+                Reported.Add(exception, ReportedMarker);
+            }
+
             var attributes = new Dictionary<string, object?>
             {
                 ["error.is_crash"] = fatal,

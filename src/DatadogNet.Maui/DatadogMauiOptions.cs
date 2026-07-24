@@ -38,7 +38,10 @@ public sealed class DatadogMauiOptions
     /// exception type.
     /// <para>
     /// Also picks up <see cref="TaskScheduler.UnobservedTaskException"/>, which does not terminate
-    /// the process and so is otherwise invisible.
+    /// the process and so is otherwise invisible, and each platform's own boundary — Android's
+    /// <c>UnhandledExceptionRaiser</c> and Apple's managed-exception marshalling — where a failure
+    /// can end the app without ever reaching the <c>AppDomain</c> hook. A failure seen by more than
+    /// one hook is reported once.
     /// </para>
     /// </remarks>
     public bool TrackUnhandledExceptions { get; init; } = true;

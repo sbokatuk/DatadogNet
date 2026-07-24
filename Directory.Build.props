@@ -98,11 +98,13 @@
     <DatadogSdkBand Condition=" '$(DatadogSdkBand)' == '' ">net9</DatadogSdkBand>
 
     <DatadogNetVersionMoniker Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0;net9.0</DatadogNetVersionMoniker>
+    <DatadogWindowsTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-windows10.0.19041.0;net9.0-windows10.0.19041.0</DatadogWindowsTargetFramework>
     <DatadogAndroidTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-android34.0;net9.0-android35.0</DatadogAndroidTargetFramework>
     <DatadogiOSTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-ios18.0;net9.0-ios18.0</DatadogiOSTargetFramework>
     <DatadogMacTargetFramework Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-maccatalyst18.0;net9.0-maccatalyst18.0</DatadogMacTargetFramework>
 
     <DatadogNetVersionMoniker Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0</DatadogNetVersionMoniker>
+    <DatadogWindowsTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-windows10.0.19041.0</DatadogWindowsTargetFramework>
     <DatadogAndroidTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-android36.0</DatadogAndroidTargetFramework>
     <DatadogiOSTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-ios26.0</DatadogiOSTargetFramework>
     <DatadogMacTargetFramework Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-maccatalyst26.0</DatadogMacTargetFramework>
@@ -184,6 +186,18 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <ContinuousIntegrationBuild Condition=" '$(GITHUB_ACTIONS)' == 'true' ">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!--
+    Surface the curated release notes on nuget.org. docs/release-notes/<version>.md already feeds
+    the GitHub release; packing it here is what makes it reach the .nupkg, so nuget.org stops
+    showing empty release notes. A version with no curated file - a PR prerelease of unreleased
+    work, typically - falls back to the releases page rather than shipping nothing.
+  -->
+  <PropertyGroup>
+    <DatadogReleaseNotesFile>$(MSBuildThisFileDirectory)docs/release-notes/$(VersionPrefix).md</DatadogReleaseNotesFile>
+    <PackageReleaseNotes Condition=" Exists('$(DatadogReleaseNotesFile)') ">$([System.IO.File]::ReadAllText('$(DatadogReleaseNotesFile)'))</PackageReleaseNotes>
+    <PackageReleaseNotes Condition=" '$(PackageReleaseNotes)' == '' ">https://github.com/sbokatuk/DatadogNet/releases/tag/v$(VersionPrefix)</PackageReleaseNotes>
   </PropertyGroup>
 
 </Project>

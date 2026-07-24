@@ -43,6 +43,7 @@
   <ItemGroup>
     <PackageReference Include="DatadogNet.Maui" Version="$(DatadogPackageVersion)" />
     <PackageReference Include="DatadogNet.CrashReporting" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.WebView" Version="$(DatadogPackageVersion)" />
   </ItemGroup>
 
   <ItemGroup>

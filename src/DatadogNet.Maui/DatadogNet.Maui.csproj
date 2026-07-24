@@ -4,28 +4,31 @@
 
   <PropertyGroup>
     <!--
-      Android, iOS and Mac Catalyst only, with no platform-neutral asset - which is the one place
-      this package differs from DatadogNet, and it is not a choice.
+      Android, iOS, Mac Catalyst and a Windows stub head, with no platform-neutral asset - which
+      is the one place this package differs from DatadogNet, and it is not a choice:
+      Microsoft.Maui.Controls is a metapackage with no lib/ assets, its reference assemblies come
+      from the installed MAUI workload selected by target platform, and there is no
+      platform-neutral flavour of MAUI at any version to compile a no-op against.
 
-      Microsoft.Maui.Controls is a metapackage with no lib/ assets: the reference assemblies come
-      from the installed MAUI workload, selected by target platform. There is no platform-neutral
-      flavour of MAUI at any version to compile a no-op against, and net*-windows can only be built
-      on Windows, which this repository's CI is not.
+      The Windows head is a stub with a purpose. Every call it forwards lands in the core
+      package's documented no-op neutral implementation, and its existence removes the last
+      platform-conditional PackageReference a multi-headed app needed - UseDatadog compiles and
+      runs on the Windows head, and does nothing, exactly like DatadogNet itself there. It is
+      compiled from this repository's macOS runners: EnableWindowsTargeting below is the switch
+      that permits that, with the WindowsAppSDK reference assemblies arriving from NuGet on
+      restore.
 
-      The net8 heads build - MAUI 8.0.100 resolves from nuget.org - but a net8 MAUI *app* does not.
-      They ship anyway so that such an app fails with the Android SDK's own error rather than a
-      restore error blaming this package. See Directory.Build.props.
+      The net8 heads build - MAUI 8.0.100 resolves from nuget.org - but a net8 MAUI *app* does
+      not. They ship anyway so that such an app fails with the Android SDK's own error rather
+      than a restore error blaming this package. See Directory.Build.props.
 
-      So a MAUI app with a Windows head guards this one reference by platform, exactly as the
-      binding repositories' READMEs describe for the bindings themselves. The Mac Catalyst head
-      stopped needing that guard when the DatadogNet.Mac bindings arrived: its MAUI head is
-      first-class here, compiling the same Platforms/iOS-shaped integration the iOS head uses.
-      DatadogNet - where the API a view-model actually calls lives - still needs no guard, so the
-      conditional stays in the .csproj rather than spreading into the code.
+      The Mac Catalyst head is first-class, compiling the same Platforms/iOS-shaped integration
+      the iOS head uses over the DatadogNet.Mac bindings.
     -->
-    <TargetFrameworks>$(DatadogAndroidTargetFramework);$(DatadogiOSTargetFramework);$(DatadogMacTargetFramework)</TargetFrameworks>
+    <TargetFrameworks>$(DatadogAndroidTargetFramework);$(DatadogiOSTargetFramework);$(DatadogMacTargetFramework);$(DatadogWindowsTargetFramework)</TargetFrameworks>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
 
     <PackageId>DatadogNet.Maui</PackageId>
     <Title>Datadog .NET MAUI integration</Title>
@@ -49,16 +52,21 @@
     <None Remove="Platforms/MacCatalyst/**/*.cs" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="../DatadogNet/DatadogNet.csproj" />
+  <!-- Same re-include for the Windows stub head, for the same reason as MacCatalyst above. -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <Compile Include="Platforms/Windows/**/*.cs" />
+    <None Remove="Platforms/Windows/**/*.cs" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../DatadogNet/DatadogNet.csproj" />
     <!--
-      Http is what supplies IHttpClientBuilder, which AddDatadogTracking extends. It is not part of
-      the MAUI workload's implicit reference set.
+      The Microsoft.Extensions glue - the DI registrations, the ILogger provider,
+      AddDatadogTracking - lives there, shared with hosts that have no MAUI. UseDatadog delegates
+      to it; what stays here is what only exists in MAUI: page tracking, the lifecycle hooks and
+      unhandled-exception reporting.
     -->
-    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
+    <ProjectReference Include="../DatadogNet.Extensions.DependencyInjection/DatadogNet.Extensions.DependencyInjection.csproj" />
   </ItemGroup>
 
 </Project>

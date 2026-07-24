@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace DatadogNet.Maui;
+namespace DatadogNet;
 
 /// <summary>
 /// Sends <c>Microsoft.Extensions.Logging</c> output to Datadog.
@@ -10,7 +10,7 @@ namespace DatadogNet.Maui;
 /// <c>ILogger&lt;T&gt;</c> category it was written through — <c>MyApp.Services.OrderService</c> —
 /// which is what makes the Logs UI's grouping match the code's.
 /// </remarks>
-internal sealed class DatadogLoggerProvider(DatadogMauiOptions options) : ILoggerProvider
+internal sealed class DatadogLoggerProvider(LoggerOptions? options, LogLevel minimumLogLevel) : ILoggerProvider
 {
     private readonly Dictionary<string, ILogger> loggers = [];
 
@@ -26,8 +26,8 @@ internal sealed class DatadogLoggerProvider(DatadogMauiOptions options) : ILogge
             }
 
             var created = new DatadogCategoryLogger(
-                Datadog.Logs.CreateLogger(WithName(options.Logger, categoryName)),
-                options.MinimumLogLevel);
+                Datadog.Logs.CreateLogger(WithName(options, categoryName)),
+                minimumLogLevel);
 
             loggers[categoryName] = created;
             return created;

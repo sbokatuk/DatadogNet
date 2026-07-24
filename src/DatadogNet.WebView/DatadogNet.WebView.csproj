@@ -30,4 +30,14 @@
     <PackageReference Include="DatadogNet.WebViewTracking.Mac" Version="$(DatadogNetMacVersion)" />
   </ItemGroup>
 
+  <!--
+    Consumer R8/ProGuard keep-rules for the Android head. Packed under buildTransitive/ so NuGet
+    imports the .targets into every consuming project; the rules attach only where R8 runs. See
+    the files' own comments for why they exist and why they are duplicated from the binding.
+  -->
+  <ItemGroup>
+    <None Include="buildTransitive/DatadogNet.WebView.targets" Pack="true" PackagePath="buildTransitive" />
+    <None Include="buildTransitive/datadog-webview.pro" Pack="true" PackagePath="buildTransitive" />
+  </ItemGroup>
+
 </Project>

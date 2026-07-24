@@ -46,18 +46,28 @@ public static class Packages
         "net10.0-maccatalyst26.0",
     ];
 
-    /// <summary>The target frameworks a package with <c>mobile</c> heads must carry.</summary>
-    public static readonly string[] MobileHeadTargetFrameworks =
+    /// <summary>The target frameworks a package with <c>maui</c> heads must carry.</summary>
+    /// <remarks>
+    /// The platform heads plus a Windows stub head, and no neutral asset — MAUI has nothing
+    /// platform-neutral to compile against. The Windows heads are what remove the last
+    /// platform-conditional <c>PackageReference</c> a multi-headed app needed; they compile on
+    /// this repository's macOS runners via <c>EnableWindowsTargeting</c> and forward into the
+    /// core package's no-op neutral implementation.
+    /// </remarks>
+    public static readonly string[] MauiHeadTargetFrameworks =
     [
         "net8.0-android34.0",
         "net8.0-ios18.0",
         "net8.0-maccatalyst18.0",
+        "net8.0-windows10.0.19041.0",
         "net9.0-android35.0",
         "net9.0-ios18.0",
         "net9.0-maccatalyst18.0",
+        "net9.0-windows10.0.19041.0",
         "net10.0-android36.0",
         "net10.0-ios26.0",
         "net10.0-maccatalyst26.0",
+        "net10.0-windows10.0.19041.0",
     ];
 
     /// <summary>The DatadogNet.Android packages the android assets must depend on.</summary>
@@ -130,8 +140,13 @@ public static class Packages
     public static PackageSpec Spec(string id) => All.Single(package => package.Id == id);
 
     /// <summary>The target frameworks a package is expected to carry.</summary>
-    public static string[] ExpectedTargetFrameworks(string id) =>
-        Spec(id).Heads == "mobile" ? MobileHeadTargetFrameworks : AllHeadTargetFrameworks;
+    public static string[] ExpectedTargetFrameworks(string id) => Spec(id).Heads switch
+    {
+        "all" => AllHeadTargetFrameworks,
+        "maui" => MauiHeadTargetFrameworks,
+        var heads => throw new InvalidOperationException(
+            $"packages.tsv declares unknown heads '{heads}' for {id}."),
+    };
 
     public static ZipArchive OpenPackage(string id)
     {

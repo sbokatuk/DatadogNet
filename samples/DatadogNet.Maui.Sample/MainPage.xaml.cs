@@ -208,8 +208,22 @@ public partial class MainPage : ContentPage
 
     private void OnResumeRecording(object? sender, EventArgs e)
     {
+        // The configuration set StartRecordingImmediately = false, so the first press here is
+        // what begins recording at all — the consent-gated shape, with this call standing where
+        // "the user agreed" goes in a real app.
         sessionReplay.StartRecording();
-        Write("Resumed Session Replay.");
+        Write("Session Replay is recording.");
+    }
+
+    private void OnCycleConsent(object? sender, EventArgs e)
+    {
+        // Pending collects and holds events on the device; Granted releases them, NotGranted
+        // discards them. This is the runtime half of a prompt-on-first-launch flow — the
+        // configuration half is starting from TrackingConsent.Pending instead of Granted.
+        Datadog.SetTrackingConsent(TrackingConsent.Pending);
+        Datadog.SetTrackingConsent(TrackingConsent.Granted);
+
+        Write("Cycled consent Pending → Granted; anything held while pending was released.");
     }
 
     private void OnSignIn(object? sender, EventArgs e)
@@ -240,6 +254,12 @@ public partial class MainPage : ContentPage
     {
         // No tracking code: pushing the page reports a view, popping it stops it.
         await Navigation.PushAsync(new DetailsPage());
+    }
+
+    private async void OnPushWebView(object? sender, EventArgs e)
+    {
+        // DatadogNet.WebView: the page installs the bridge on its platform web view when it loads.
+        await Navigation.PushAsync(new WebViewPage());
     }
 
     private void Write(string message)

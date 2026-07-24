@@ -78,6 +78,20 @@ public static class MauiProgram
                         TrackFrustrations = true,
                         TrackBackgroundEvents = true,
                         CustomEndpoint = LocalEndpoint,
+
+                        // The façade covers what both SDKs share; ConfigureNative reaches the
+                        // rest, at the one moment it can still be set. One platform-only setting
+                        // each side, as a worked example - this is the only conditional
+                        // compilation in the sample, and it is the escape hatch's nature.
+                        ConfigureNative = native =>
+                        {
+#if ANDROID
+                            ((Com.Datadog.Android.Rum.RumConfiguration.Builder)native)
+                                .TrackNonFatalAnrs(true);
+#elif IOS || MACCATALYST
+                            ((DatadogRUM.DDRUMConfiguration)native).TrackWatchdogTerminations = true;
+#endif
+                        },
                     },
 
                     Logs = new LogsOptions { CustomEndpoint = LocalEndpoint },
@@ -98,6 +112,12 @@ public static class MauiProgram
                         ImagePrivacy = ImagePrivacy.MaskAll,
                         TouchPrivacy = TouchPrivacy.Hide,
                         CustomEndpoint = LocalEndpoint,
+
+                        // The consent-gated shape: the feature is enabled but records nothing
+                        // until Datadog.SessionReplay.StartRecording() - the "Start / resume
+                        // recording" button - which is where an app puts the moment its user
+                        // agreed to being recorded.
+                        StartRecordingImmediately = false,
                     },
                 },
                 new DatadogMauiOptions
