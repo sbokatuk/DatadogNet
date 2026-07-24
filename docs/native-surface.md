@@ -1,7 +1,8 @@
 # What the façade covers, and what it leaves to `ConfigureNative`
 
 Measured against **dd-sdk-ios 3.14.0** and **dd-sdk-android 3.12.1** specifically, by reading the
-bound API surface of `DatadogNet.iOS 3.14.0.1` and `DatadogNet.Android 3.12.1.1` rather than the
+bound API surface of `DatadogNet.iOS 3.14.0.2` and `DatadogNet.Android 3.12.1.2` — the pinned
+revisions, whose convenience layers carry the members the façade calls — rather than the
 documentation. [`upgrade-to-3x.md`](upgrade-to-3x.md) covers what changed from the 2.x line.
 
 That distinction matters more than it sounds: the documentation describes the newest SDK, not the

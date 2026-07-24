@@ -61,7 +61,7 @@ exceptions are reported — on both platforms.
 
 ## Packages
 
-Four packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.14.0.1` is dd-sdk-ios
+Five packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.14.0.1` is dd-sdk-ios
 **3.14.0**, binding revision **1**, and the Android side of the same release is dd-sdk-android
 **3.12.1**.
 
@@ -487,7 +487,7 @@ nuget.org: DatadogNet.iOS 3.14.0.2        nuget.org: DatadogNet.Android 3.12.1.2
         src/DatadogNet/Platforms/{iOS,Android,Unsupported}/
                        │  one shared API, three implementations, one selected per target framework
                        ▼
-        src/DatadogNet.{CrashReporting,WebView,Maui}/
+        src/DatadogNet.{Extensions.DependencyInjection,CrashReporting,WebView,Maui}/
                        │  build/BuildNugets.sh — pack twice (net9 band, net10 band), then merge
                        ▼
                 artifacts/*.nupkg  ──►  nuget.org
@@ -524,7 +524,7 @@ carrying the dependency group across with them. Both binding repositories do the
 | `src/DatadogNet/` | The API. Shared sources declare it; `Platforms/<name>/` supplies the bodies. |
 | `src/DatadogNet/Platforms/Unsupported/` | The no-op implementation the neutral `net8.0`/`net9.0`/`net10.0` assemblies link. |
 | `src/DatadogNet.Extensions.DependencyInjection/` | The `Microsoft.Extensions` glue: `AddDatadog`, the `ILogger` provider, `AddDatadogTracking`. One set of shared sources — it only calls the core API, which is identical across heads. |
-| `src/Datadog.Facade.props` | Everything the four projects share, so each `.csproj` is its identity and its dependencies. |
+| `src/Datadog.Facade.props` | Everything the five projects share, so each `.csproj` is its identity and its dependencies. |
 | `build/packages.tsv` | The package set. The build script, both workflows, the tests and the device runners all read it. |
 | `tests/DatadogNet.PackageTests/` | Asserts the shape of the packed `.nupkg`s. |
 | `tests/DatadogNet.DeviceTests/` | **One** app, two heads, one shared list of checks — run on an Android emulator and an iOS simulator against the packed packages. |
@@ -603,7 +603,7 @@ is a two-line edit and a test run. The exception is a major: see the note on 3.x
 
 ## Releasing
 
-Tag it. `v3.14.0.4` builds, tests, publishes all four packages to nuget.org via trusted publishing,
+Tag it. `v3.14.0.4` builds, tests, publishes all five packages to nuget.org via trusted publishing,
 and creates a GitHub release.
 
 Pull requests publish a `-beta.<pr>.<run>` prerelease of the whole set.
