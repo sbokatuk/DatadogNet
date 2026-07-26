@@ -28,7 +28,7 @@
       docs/native-surface.md for what is covered.
     -->
     <DatadogNativeVersion>3.14.0</DatadogNativeVersion>
-    <DatadogBindingRevision>4</DatadogBindingRevision>
+    <DatadogBindingRevision>5</DatadogBindingRevision>
     <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
 
     <!--
