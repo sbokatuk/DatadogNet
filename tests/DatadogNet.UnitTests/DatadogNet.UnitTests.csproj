@@ -35,6 +35,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/DatadogNet/DatadogNet.csproj" />
     <ProjectReference Include="../../src/DatadogNet.Extensions.DependencyInjection/DatadogNet.Extensions.DependencyInjection.csproj" />
+    <ProjectReference Include="../../src/DatadogNet.Extensions.Diagnostics/DatadogNet.Extensions.Diagnostics.csproj" />
   </ItemGroup>
 
 </Project>

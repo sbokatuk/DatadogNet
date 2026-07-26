@@ -61,7 +61,7 @@ exceptions are reported — on both platforms.
 
 ## Packages
 
-Five packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.14.0.1` is dd-sdk-ios
+Six packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.14.0.1` is dd-sdk-ios
 **3.14.0**, binding revision **1**, and the Android side of the same release is dd-sdk-android
 **3.12.1**.
 
@@ -74,7 +74,8 @@ Five packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.1
 | --- | --- | --- |
 | **`DatadogNet.Maui`** | **The one you install in a MAUI app.** `UseDatadog`, automatic RUM views from page navigation, an `ILogger` provider, unhandled-exception reporting, `HttpClient` instrumentation. | `DatadogNet`, `DatadogNet.Extensions.DependencyInjection` |
 | `DatadogNet` | The API itself: configuration, RUM, Logs, Trace, Session Replay, consent, user and account info, `DatadogHttpMessageHandler`. Usable from a plain .NET Android or .NET iOS app with no MAUI, and dependency-free on its neutral heads. | — |
-| `DatadogNet.Extensions.DependencyInjection` | The `Microsoft.Extensions` glue without MAUI: `AddDatadog` on `IServiceCollection` and `ILoggingBuilder`, and `AddDatadogTracking` on `IHttpClientBuilder`. `DatadogNet.Maui` builds on it; reference it directly from a plain app, a service or a test host. | `DatadogNet` |
+| `DatadogNet.Extensions.DependencyInjection` | The `Microsoft.Extensions` glue without MAUI: `AddDatadog` on `IServiceCollection` (including an `IConfiguration` overload for appsettings) and `ILoggingBuilder`, and `AddDatadogTracking` on `IHttpClientBuilder`. `DatadogNet.Maui` builds on it; reference it directly from a plain app, a service or a test host. | `DatadogNet` |
+| `DatadogNet.Extensions.Diagnostics` | The `System.Diagnostics.Activity` bridge: name your `ActivitySource`s and their activities become Datadog spans, sampled and RUM-correlated like hand-written ones. | `DatadogNet` |
 | `DatadogNet.CrashReporting` | Crash reporting. Separate because it installs a signal handler. | `DatadogNet` |
 | `DatadogNet.WebView` | Bridges RUM and Logs out of a web view, for hybrid apps. | `DatadogNet` |
 
@@ -86,7 +87,8 @@ Most apps need one or two lines:
 ```
 
 **Target frameworks.** `DatadogNet`, `DatadogNet.Extensions.DependencyInjection`,
-`DatadogNet.CrashReporting` and `DatadogNet.WebView` ship twelve: `net8.0`, `net9.0` and
+`DatadogNet.Extensions.Diagnostics`, `DatadogNet.CrashReporting` and `DatadogNet.WebView` ship
+twelve: `net8.0`, `net9.0` and
 `net10.0`, each with its `-android`, `-ios` and `-maccatalyst` head — `net8.0-android34.0`,
 `net8.0-ios18.0`, `net8.0-maccatalyst18.0`, `net9.0-android35.0`, `net9.0-ios18.0`,
 `net9.0-maccatalyst18.0`, `net10.0-android36.0`, `net10.0-ios26.0`, `net10.0-maccatalyst26.0`.
@@ -314,6 +316,24 @@ native SDKs' own thread-local scope managers, so it does **not** flow across an 
 
 `Datadog.Tracer.Inject(span)` returns the headers that continue the trace into your backend, in
 whichever of `Datadog`, `B3`, `B3Multi` and `TraceContext` you configured.
+
+**Where `System.Diagnostics.Activity` fits.** `IDatadogTracer` is Datadog's manual span API;
+spans that libraries emit through `ActivitySource` — EF Core, gRPC, your own
+`ActivitySource("MyCompany.Checkout")` — do not arrive in Datadog on their own. The
+`DatadogNet.Extensions.Diagnostics` package is the join:
+
+```csharp
+using var bridge = DatadogActivityBridge.Start(new DatadogActivityBridgeOptions {
+    Sources = ["MyCompany.Checkout", "MyCompany.Sync"],
+});
+```
+
+Forwarding is opt-in per source, because a modern .NET process emits activities from everywhere
+and every forwarded span is an event Datadog ingests. Tags, error status, `DisplayName` (as
+`resource.name`) and parentage carry across; sampling and RUM correlation are the tracer's own,
+because the bridge goes through the same `IDatadogTracer` as hand-written spans rather than
+through a parallel exporter. The native SDKs' OpenTelemetry APIs are deliberately not surfaced —
+one pipeline with one sampling configuration beats two that have to be reconciled.
 
 ### HTTP
 
@@ -549,7 +569,8 @@ carrying the dependency group across with them. Both binding repositories do the
 | `src/DatadogNet/` | The API. Shared sources declare it; `Platforms/<name>/` supplies the bodies. |
 | `src/DatadogNet/Platforms/Unsupported/` | The no-op implementation the neutral `net8.0`/`net9.0`/`net10.0` assemblies link. |
 | `src/DatadogNet.Extensions.DependencyInjection/` | The `Microsoft.Extensions` glue: `AddDatadog`, the `ILogger` provider, `AddDatadogTracking`. One set of shared sources — it only calls the core API, which is identical across heads. |
-| `src/Datadog.Facade.props` | Everything the five projects share, so each `.csproj` is its identity and its dependencies. |
+| `src/DatadogNet.Extensions.Diagnostics/` | The `Activity` bridge, shaped the same way: shared sources only, no platform directories. |
+| `src/Datadog.Facade.props` | Everything the six projects share, so each `.csproj` is its identity and its dependencies. |
 | `build/packages.tsv` | The package set. The build script, both workflows, the tests and the device runners all read it. |
 | `tests/DatadogNet.PackageTests/` | Asserts the shape of the packed `.nupkg`s. |
 | `tests/DatadogNet.DeviceTests/` | **One** app, two heads, one shared list of checks — run on an Android emulator and an iOS simulator against the packed packages. |

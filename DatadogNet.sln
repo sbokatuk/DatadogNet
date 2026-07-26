@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatadogNet.UnitTests", "tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatadogNet.Extensions.DependencyInjection", "src\DatadogNet.Extensions.DependencyInjection\DatadogNet.Extensions.DependencyInjection.csproj", "{FE832F8A-83C4-49BD-9755-E7E406CBC12A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatadogNet.Extensions.Diagnostics", "src\DatadogNet.Extensions.Diagnostics\DatadogNet.Extensions.Diagnostics.csproj", "{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -129,6 +131,18 @@ Global
 		{FE832F8A-83C4-49BD-9755-E7E406CBC12A}.Release|x64.Build.0 = Release|Any CPU
 		{FE832F8A-83C4-49BD-9755-E7E406CBC12A}.Release|x86.ActiveCfg = Release|Any CPU
 		{FE832F8A-83C4-49BD-9755-E7E406CBC12A}.Release|x86.Build.0 = Release|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Debug|x64.Build.0 = Debug|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Debug|x86.Build.0 = Debug|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Release|x64.ActiveCfg = Release|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Release|x64.Build.0 = Release|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Release|x86.ActiveCfg = Release|Any CPU
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -142,5 +156,6 @@ Global
 		{B1E88D4F-59D7-4C5C-B660-53DBA347E83D} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{3152E811-CAFD-4662-9373-3053B9049F73} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{FE832F8A-83C4-49BD-9755-E7E406CBC12A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{E42C323E-BED0-4862-A642-EBD6A0B5A3D4} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
