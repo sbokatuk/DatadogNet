@@ -31,7 +31,11 @@ public interface IDatadogLogs
 /// ready-made one for apps that only want the single obvious logger.
 /// <para>
 /// Every member is safe to call before <see cref="Datadog.Initialize"/> or on a platform with no
-/// Datadog support; the entry is dropped rather than throwing.
+/// Datadog support; the entry is dropped rather than throwing. A logger created before
+/// <see cref="Datadog.Initialize"/> is not dead, though: it starts delivering at the first write
+/// after the SDK is up, and attributes and tags applied while it waited are kept and applied then
+/// — so a logger built during startup, or registered as a DI singleton before the host runs,
+/// loses only the entries written too early, not its configuration or its future.
 /// </para>
 /// </remarks>
 public interface IDatadogLogger

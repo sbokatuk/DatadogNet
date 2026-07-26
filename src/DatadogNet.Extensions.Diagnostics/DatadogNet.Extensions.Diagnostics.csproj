@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../Datadog.Facade.props" />
+
+  <PropertyGroup>
+    <!--
+      The System.Diagnostics.Activity bridge, in its own package for the same reason the
+      Microsoft.Extensions glue is in its own: DatadogNet's neutral head is dependency-free and an
+      app that only calls the manual API should not carry an ActivityListener it never starts. The
+      other direction matters too - this package deliberately does NOT depend on the
+      DependencyInjection package, because a plain app with no container still has ActivitySources
+      worth forwarding.
+
+      Everything here is BCL (System.Diagnostics.DiagnosticSource ships in the framework on every
+      TFM this repository targets), so like the core package the neutral head adds no NuGet
+      dependencies at all.
+
+      No Platforms/ directory: the bridge only calls the core API, which is identical across every
+      head, so one set of shared sources compiles into all of them.
+    -->
+    <PackageId>DatadogNet.Extensions.Diagnostics</PackageId>
+    <Title>System.Diagnostics.Activity bridge for DatadogNet</Title>
+    <Description>
+      Forwards System.Diagnostics.Activity spans into Datadog: name the ActivitySources you care
+      about and their activities become Datadog spans - tags, error status and parentage carried
+      across, sampled and RUM-correlated exactly like spans written through IDatadogTracer. The
+      join between .NET's built-in instrumentation ecosystem and DatadogNet's Trace feature, for
+      MAUI and plain .NET Android/iOS/Mac Catalyst apps.
+    </Description>
+    <PackageTags>datadog;activity;activitysource;diagnostics;tracing;apm;distributed-tracing;observability;android;ios;maccatalyst</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet/DatadogNet.csproj" />
+  </ItemGroup>
+
+</Project>

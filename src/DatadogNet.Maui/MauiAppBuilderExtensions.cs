@@ -43,9 +43,9 @@ public static partial class MauiAppBuilderExtensions
     /// <c>UseMauiApp</c>, before any registration that could itself throw.
     /// <para>
     /// Registers <see cref="IRumMonitor"/>, <see cref="IDatadogLogs"/>, <see cref="IDatadogLogger"/>,
-    /// <see cref="IDatadogTracer"/> and <see cref="ISessionReplay"/> as singletons, so a view-model
-    /// can depend on the piece it uses and be given a substitute in a test rather than reaching for
-    /// the static.
+    /// <see cref="IDatadogTracer"/>, <see cref="ISessionReplay"/> and <see cref="IDatadogSdk"/> as
+    /// singletons, so a view-model can depend on the piece it uses and be given a substitute in a
+    /// test rather than reaching for the static.
     /// </para>
     /// <para>
     /// Crash reporting is not turned on here: it lives in a separate package because it installs a

@@ -28,11 +28,14 @@
     -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
+    <!-- The in-memory provider, for the configuration-binder tests. -->
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../src/DatadogNet/DatadogNet.csproj" />
     <ProjectReference Include="../../src/DatadogNet.Extensions.DependencyInjection/DatadogNet.Extensions.DependencyInjection.csproj" />
+    <ProjectReference Include="../../src/DatadogNet.Extensions.Diagnostics/DatadogNet.Extensions.Diagnostics.csproj" />
   </ItemGroup>
 
 </Project>

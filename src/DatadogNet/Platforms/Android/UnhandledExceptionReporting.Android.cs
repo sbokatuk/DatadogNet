@@ -1,8 +1,8 @@
 using Android.Runtime;
 
-namespace DatadogNet.Maui;
+namespace DatadogNet;
 
-internal static partial class UnhandledExceptionReporting
+public static partial class UnhandledExceptionReporting
 {
     /// <remarks>
     /// <c>UnhandledExceptionRaiser</c> fires when a managed exception is about to propagate into

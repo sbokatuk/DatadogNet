@@ -338,3 +338,14 @@ jobs:
                    -p:DatadogPackageVersion="${{ inputs.version }}" \
                    || exit 1
                done )
+
+      # The windows stub head, compiled from a consumer. Not a sample TFM: a windows-headed MAUI
+      # *app* runs WinUI's XamlCompiler.exe, a Windows-only executable, so on these macOS runners
+      # the consumer compile is a XAML-free MAUI class library - which is exactly the packaging
+      # promise under test (restore resolves the windows asset, UseDatadog compiles against it).
+      - name: Build the windows-head consumer check
+        run: |
+          ( cd "${RUNNER_TEMP}/sample-sdk" \
+            && dotnet build "${GITHUB_WORKSPACE}/tests/DatadogNet.Maui.WindowsHeadCheck/DatadogNet.Maui.WindowsHeadCheck.csproj" \
+                 --configuration Debug \
+                 -p:DatadogPackageVersion="${{ inputs.version }}" )

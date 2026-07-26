@@ -7,10 +7,11 @@ namespace DatadogNet;
 /// Assign to <see cref="DatadogConfiguration.Trace"/> to enable Trace. Spans are then started
 /// through <see cref="Datadog.Tracer"/>.
 /// <para>
-/// Both 2.x SDKs are OpenTracing-shaped — <c>AndroidTracer</c> implements
-/// <c>io.opentracing.Tracer</c> and <c>DDTracer</c> implements <c>OTTracer</c> — which is why
-/// <see cref="IDatadogTracer"/> can be one interface over both. dd-sdk 3.0 removed OpenTracing on
-/// both platforms, so this shape is specific to the 2.x line.
+/// The 3.x SDKs this façade wraps each ship their own tracer shape — dd-sdk-android's
+/// <c>DatadogTracing</c>/<c>DatadogSpan</c> replaced OpenTracing, and dd-sdk-ios kept its
+/// <c>OTTracer</c>-flavoured <c>DDTracer</c> — and <see cref="IDatadogTracer"/> is the one
+/// interface over both. It is Datadog's manual span API, not <c>System.Diagnostics.Activity</c>:
+/// spans a library emits through <c>ActivitySource</c> do not arrive here on their own.
 /// </para>
 /// </remarks>
 public sealed class TraceOptions

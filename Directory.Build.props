@@ -28,15 +28,19 @@
       docs/native-surface.md for what is covered.
     -->
     <DatadogNativeVersion>3.14.0</DatadogNativeVersion>
-    <DatadogBindingRevision>4</DatadogBindingRevision>
+    <DatadogBindingRevision>5</DatadogBindingRevision>
     <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
 
     <!--
-      The iOS and Android binding package sets this façade is compiled against. Pinned exactly rather
-      than as a floating range: the façade calls into the hand-written convenience layers in both
-      repositories (RumMonitorExtensions, DDRUMMonitor.Ergonomics and friends), which are not
-      covered by any compatibility promise, and a floating reference would turn a change there into
-      a build break in somebody's app rather than here.
+      The iOS and Android binding package sets this façade is compiled against. Pinned to a single
+      version - which NuGet packs as a ">= x.y.z.n" MINIMUM, not an exact requirement. Default
+      resolution lands on the pin, and that is the arrangement being promised: the façade calls
+      into the hand-written convenience layers in both repositories (RumMonitorExtensions,
+      DDRUMMonitor.Ergonomics and friends), which are not covered by any compatibility promise
+      beyond "the pinned revision has them". A consumer who adds a direct reference to a NEWER
+      binding floats above the pin - deliberately allowed, so an emergency binding patch is
+      consumable before the façade re-pins - and the README's "running ahead of the pins" section
+      states exactly what that does and does not keep working.
 
       The API floor is what revision .2 added: the convenience layers carry the members this
       repository used to shim for itself - the per-value attribute converters

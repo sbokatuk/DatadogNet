@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -49,6 +50,44 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Initialises Datadog from configuration and registers its services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configuration">
+    /// The section holding the Datadog settings — typically
+    /// <c>builder.Configuration.GetSection("Datadog")</c>. Bound by
+    /// <see cref="DatadogConfigurationBinder"/>; see it for the key shape.
+    /// </param>
+    /// <param name="loggerOptions">
+    /// How the <see cref="IDatadogLogger"/> the app resolves is configured.
+    /// <see langword="null"/> uses the SDK's own defaults.
+    /// </param>
+    /// <returns><paramref name="services"/>, for chaining.</returns>
+    /// <remarks>
+    /// The <c>appsettings.json</c> path for a generic host:
+    /// <code>
+    /// builder.Services.AddDatadog (builder.Configuration.GetSection ("Datadog"));
+    /// </code>
+    /// A malformed section throws here, during startup, with the full configuration path in the
+    /// message — the same stance <see cref="Datadog.Initialize"/> takes on a malformed
+    /// configuration object, and for the same reason: a client token that is silently empty means
+    /// every event vanishes with nothing ever saying why. Settings configuration cannot express —
+    /// the <c>ConfigureNative</c> hooks — need the
+    /// <see cref="AddDatadog(IServiceCollection, DatadogConfiguration, LoggerOptions?)"/> overload
+    /// instead.
+    /// </remarks>
+    public static IServiceCollection AddDatadog(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        LoggerOptions? loggerOptions = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        return services.AddDatadog(DatadogConfigurationBinder.Bind(configuration), loggerOptions);
+    }
+
+    /// <summary>
     /// Registers the Datadog services, without initialising the SDK.
     /// </summary>
     /// <param name="services">The service collection.</param>
@@ -65,6 +104,9 @@ public static class ServiceCollectionExtensions
     /// <see cref="AddDatadog(IServiceCollection, DatadogConfiguration, LoggerOptions?)"/> and let
     /// it initialise too; this overload exists for hosts whose SDK is initialised elsewhere, and
     /// for test hosts that want the registrations resolving the no-op neutral implementation.
+    /// The <see cref="IDatadogLogger"/> singleton is safe to register this early even though the
+    /// SDK is not up yet: a logger created before <see cref="Datadog.Initialize"/> starts
+    /// delivering at the first write after it — see <see cref="IDatadogLogger"/>.
     /// </remarks>
     public static IServiceCollection AddDatadog(
         this IServiceCollection services,
@@ -79,6 +121,10 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(_ => Datadog.Tracer);
         services.TryAddSingleton(_ => Datadog.SessionReplay);
         services.TryAddSingleton(_ => Datadog.Logs.CreateLogger(loggerOptions));
+
+        // The lifecycle surface too, so "we call SetUser on sign-in" is a unit test against a
+        // fake IDatadogSdk rather than an untestable static call.
+        services.TryAddSingleton<IDatadogSdk>(DatadogSdk.Instance);
 
         return services;
     }

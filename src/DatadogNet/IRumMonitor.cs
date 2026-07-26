@@ -376,4 +376,18 @@ public interface IRumMonitor
     /// can watch. Asynchronous because both SDKs answer through a callback on their own queue.
     /// </remarks>
     Task<string?> GetCurrentSessionIdAsync();
+
+    /// <summary>
+    /// <see cref="GetCurrentSessionIdAsync()"/>, but the await can be given up.
+    /// </summary>
+    /// <param name="cancellationToken">Stops waiting for the answer.</param>
+    /// <exception cref="OperationCanceledException">The token fired first.</exception>
+    /// <remarks>
+    /// A default implementation, so a test fake that implements only the parameterless form keeps
+    /// compiling. Cancellation abandons the wait rather than interrupting the SDK: the native
+    /// lookup has no cancel, but it is also the kind of call a UI flow wants to stop waiting on —
+    /// a support screen should not hang on an SDK queue that never answers.
+    /// </remarks>
+    Task<string?> GetCurrentSessionIdAsync(CancellationToken cancellationToken) =>
+        GetCurrentSessionIdAsync().WaitAsync(cancellationToken);
 }

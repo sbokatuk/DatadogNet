@@ -24,6 +24,7 @@
 # id	heads	deps
 DatadogNet	all	-
 DatadogNet.Extensions.DependencyInjection	all	DatadogNet
+DatadogNet.Extensions.Diagnostics	all	DatadogNet
 DatadogNet.CrashReporting	all	DatadogNet
 DatadogNet.WebView	all	DatadogNet
 DatadogNet.Maui	maui	DatadogNet,DatadogNet.Extensions.DependencyInjection

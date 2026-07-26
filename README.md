@@ -61,7 +61,7 @@ exceptions are reported — on both platforms.
 
 ## Packages
 
-Five packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.14.0.1` is dd-sdk-ios
+Six packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.14.0.1` is dd-sdk-ios
 **3.14.0**, binding revision **1**, and the Android side of the same release is dd-sdk-android
 **3.12.1**.
 
@@ -74,19 +74,21 @@ Five packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.1
 | --- | --- | --- |
 | **`DatadogNet.Maui`** | **The one you install in a MAUI app.** `UseDatadog`, automatic RUM views from page navigation, an `ILogger` provider, unhandled-exception reporting, `HttpClient` instrumentation. | `DatadogNet`, `DatadogNet.Extensions.DependencyInjection` |
 | `DatadogNet` | The API itself: configuration, RUM, Logs, Trace, Session Replay, consent, user and account info, `DatadogHttpMessageHandler`. Usable from a plain .NET Android or .NET iOS app with no MAUI, and dependency-free on its neutral heads. | — |
-| `DatadogNet.Extensions.DependencyInjection` | The `Microsoft.Extensions` glue without MAUI: `AddDatadog` on `IServiceCollection` and `ILoggingBuilder`, and `AddDatadogTracking` on `IHttpClientBuilder`. `DatadogNet.Maui` builds on it; reference it directly from a plain app, a service or a test host. | `DatadogNet` |
+| `DatadogNet.Extensions.DependencyInjection` | The `Microsoft.Extensions` glue without MAUI: `AddDatadog` on `IServiceCollection` (including an `IConfiguration` overload for appsettings) and `ILoggingBuilder`, and `AddDatadogTracking` on `IHttpClientBuilder`. `DatadogNet.Maui` builds on it; reference it directly from a plain app, a service or a test host. | `DatadogNet` |
+| `DatadogNet.Extensions.Diagnostics` | The `System.Diagnostics.Activity` bridge: name your `ActivitySource`s and their activities become Datadog spans, sampled and RUM-correlated like hand-written ones. | `DatadogNet` |
 | `DatadogNet.CrashReporting` | Crash reporting. Separate because it installs a signal handler. | `DatadogNet` |
 | `DatadogNet.WebView` | Bridges RUM and Logs out of a web view, for hybrid apps. | `DatadogNet` |
 
 Most apps need one or two lines:
 
 ```xml
-<PackageReference Include="DatadogNet.Maui" Version="3.14.0.4" />
-<PackageReference Include="DatadogNet.CrashReporting" Version="3.14.0.4" />
+<PackageReference Include="DatadogNet.Maui" Version="3.14.0.5" />
+<PackageReference Include="DatadogNet.CrashReporting" Version="3.14.0.5" />
 ```
 
 **Target frameworks.** `DatadogNet`, `DatadogNet.Extensions.DependencyInjection`,
-`DatadogNet.CrashReporting` and `DatadogNet.WebView` ship twelve: `net8.0`, `net9.0` and
+`DatadogNet.Extensions.Diagnostics`, `DatadogNet.CrashReporting` and `DatadogNet.WebView` ship
+twelve: `net8.0`, `net9.0` and
 `net10.0`, each with its `-android`, `-ios` and `-maccatalyst` head — `net8.0-android34.0`,
 `net8.0-ios18.0`, `net8.0-maccatalyst18.0`, `net9.0-android35.0`, `net9.0-ios18.0`,
 `net9.0-maccatalyst18.0`, `net10.0-android36.0`, `net10.0-ios26.0`, `net10.0-maccatalyst26.0`.
@@ -164,13 +166,26 @@ constraint: the .NET 9 band builds `net8.0-ios18.0` outright.
 > `androidx.savedstate` declares `minSdkVersion 23`, and the manifest merger takes the maximum
 > across the graph — so an app declaring 21 fails to build. 23 is the real floor.
 
+### Version map
+
+The whole stack, stated once. Everything else in this README that names a version is prose around
+this row; the CI readme-check compares it against `Directory.Build.props`, so it cannot go stale
+silently:
+
+| DatadogNet | dd-sdk-ios | dd-sdk-android | DatadogNet.iOS pin | DatadogNet.Android pin | DatadogNet.Mac pin | .NET | Minimum OS |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3.14.0.5 | 3.14.0 | 3.12.1 | 3.14.0.3 | 3.12.1.3 | 3.14.0.2 | net8 · net9 · net10 | Android 23 · iOS 12.2 · macCatalyst 15.0 (macOS 12) |
+
+Earlier lines are on the [releases page](https://github.com/sbokatuk/DatadogNet/releases), each
+with the same numbers in its notes.
+
 ---
 
 ## Installing
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DatadogNet.Maui" Version="3.14.0.4" />
+  <PackageReference Include="DatadogNet.Maui" Version="3.14.0.5" />
 </ItemGroup>
 ```
 
@@ -301,6 +316,24 @@ native SDKs' own thread-local scope managers, so it does **not** flow across an 
 
 `Datadog.Tracer.Inject(span)` returns the headers that continue the trace into your backend, in
 whichever of `Datadog`, `B3`, `B3Multi` and `TraceContext` you configured.
+
+**Where `System.Diagnostics.Activity` fits.** `IDatadogTracer` is Datadog's manual span API;
+spans that libraries emit through `ActivitySource` — EF Core, gRPC, your own
+`ActivitySource("MyCompany.Checkout")` — do not arrive in Datadog on their own. The
+`DatadogNet.Extensions.Diagnostics` package is the join:
+
+```csharp
+using var bridge = DatadogActivityBridge.Start(new DatadogActivityBridgeOptions {
+    Sources = ["MyCompany.Checkout", "MyCompany.Sync"],
+});
+```
+
+Forwarding is opt-in per source, because a modern .NET process emits activities from everywhere
+and every forwarded span is an event Datadog ingests. Tags, error status, `DisplayName` (as
+`resource.name`) and parentage carry across; sampling and RUM correlation are the tracer's own,
+because the bridge goes through the same `IDatadogTracer` as hand-written spans rather than
+through a parallel exporter. The native SDKs' OpenTelemetry APIs are deliberately not surfaced —
+one pipeline with one sampling configuration beats two that have to be reconciled.
 
 ### HTTP
 
@@ -480,12 +513,14 @@ order, apart from the middle image level above.
 ## How this repository works
 
 ```
-nuget.org: DatadogNet.iOS 3.14.0.3        nuget.org: DatadogNet.Android 3.12.1.3
-        │  (dd-sdk-ios 3.14.0)                    │  (dd-sdk-android 3.12.1)
-        └──────────────┬──────────────────────────┘
-                       ▼
+nuget.org: DatadogNet.iOS 3.14.0.3   DatadogNet.Android 3.12.1.3   DatadogNet.Mac 3.14.0.2
+        │  (dd-sdk-ios 3.14.0)          │  (dd-sdk-android 3.12.1)     │  (dd-sdk-ios 3.14.0,
+        │                               │                              │   built for Catalyst)
+        └───────────────────────────────┼──────────────────────────────┘
+                                        ▼
         src/DatadogNet/Platforms/{iOS,Android,Unsupported}/
                        │  one shared API, three implementations, one selected per target framework
+                       │  (the maccatalyst heads compile Platforms/iOS over the .Mac bindings)
                        ▼
         src/DatadogNet.{Extensions.DependencyInjection,CrashReporting,WebView,Maui}/
                        │  build/BuildNugets.sh — pack twice (net9 band, net10 band), then merge
@@ -493,11 +528,21 @@ nuget.org: DatadogNet.iOS 3.14.0.3        nuget.org: DatadogNet.Android 3.12.1.3
                 artifacts/*.nupkg  ──►  nuget.org
 ```
 
-Nothing native is bound here and nothing is downloaded: both platform package sets come from
-nuget.org, pinned to an exact version rather than a range. They are pinned because this layer calls
-into the hand-written convenience APIs in both repositories — `RumMonitorExtensions`,
-`DDRUMMonitor.Ergonomics` and friends — which no compatibility promise covers, and a floating
-reference would turn a change there into a build break in somebody's app rather than here.
+Nothing native is bound here and nothing is downloaded: all three platform package sets come from
+nuget.org, each pinned to a single version. The pin is what NuGet calls a minimum — `>= 3.14.0.3`
+in the packed nuspec, not an exact requirement — and default resolution lands exactly on it. The
+pin exists because this layer calls into the hand-written convenience APIs in the binding
+repositories — `RumMonitorExtensions`, `DDRUMMonitor.Ergonomics` and friends — which no
+compatibility promise covers beyond "the pinned revision has them".
+
+**Running ahead of the pins.** Because the pin is a floor, an app can add a direct
+`PackageReference` to a *newer* binding revision and the façade will compile against it — the
+supported escape hatch for consuming an emergency binding patch before the façade re-pins. What
+that keeps working: anything on the same native SDK line (the first three version components),
+since binding revisions over one native release only add. What it does not: a binding that moves
+to a **new native SDK version** may rename or drop convenience members the façade calls, and the
+failure then appears in *your* build. Check this repository for a release that re-pins before
+jumping native lines.
 
 Building the 2.x façade turned up a set of gaps in those two repositories, including one that made
 iOS tracing unusable from C# outright — [`docs/upstream-changes.md`](docs/upstream-changes.md) is
@@ -524,7 +569,8 @@ carrying the dependency group across with them. Both binding repositories do the
 | `src/DatadogNet/` | The API. Shared sources declare it; `Platforms/<name>/` supplies the bodies. |
 | `src/DatadogNet/Platforms/Unsupported/` | The no-op implementation the neutral `net8.0`/`net9.0`/`net10.0` assemblies link. |
 | `src/DatadogNet.Extensions.DependencyInjection/` | The `Microsoft.Extensions` glue: `AddDatadog`, the `ILogger` provider, `AddDatadogTracking`. One set of shared sources — it only calls the core API, which is identical across heads. |
-| `src/Datadog.Facade.props` | Everything the five projects share, so each `.csproj` is its identity and its dependencies. |
+| `src/DatadogNet.Extensions.Diagnostics/` | The `Activity` bridge, shaped the same way: shared sources only, no platform directories. |
+| `src/Datadog.Facade.props` | Everything the six projects share, so each `.csproj` is its identity and its dependencies. |
 | `build/packages.tsv` | The package set. The build script, both workflows, the tests and the device runners all read it. |
 | `tests/DatadogNet.PackageTests/` | Asserts the shape of the packed `.nupkg`s. |
 | `tests/DatadogNet.DeviceTests/` | **One** app, two heads, one shared list of checks — run on an Android emulator and an iOS simulator against the packed packages. |
@@ -554,11 +600,11 @@ dotnet test tests/DatadogNet.PackageTests
 Run the device checks against the packed packages:
 
 ```bash
-./.github/scripts/run-simulator-tests.sh 3.14.0.4 net8.0-ios18.0
+./.github/scripts/run-simulator-tests.sh 3.14.0.5 net8.0-ios18.0
 ```
 
 ```bash
-./.github/scripts/run-emulator-tests.sh 3.14.0.4 net8.0-android34.0
+./.github/scripts/run-emulator-tests.sh 3.14.0.5 net8.0-android34.0
 ```
 
 Any of the six platform target frameworks works. CI runs net8 and net10 — the oldest asset set, and
@@ -603,13 +649,14 @@ is a two-line edit and a test run. The exception is a major: see the note on 3.x
 
 ## Releasing
 
-Tag it. `v3.14.0.4` builds, tests, publishes all five packages to nuget.org via trusted publishing,
+Tag it. `v3.14.0.5` builds, tests, publishes all six packages to nuget.org via trusted publishing,
 and creates a GitHub release.
 
 Pull requests publish a `-beta.<pr>.<run>` prerelease of the whole set.
 
 Both run the same [`build.yml`](.github/workflows/build.yml): pack, package tests, the simulator and
-emulator checks, and — on pull requests — a compile of the MAUI sample against the packed packages.
+emulator checks, and — on pull requests — a compile of the MAUI sample against the packed packages,
+plus the windows-head consumer check.
 
 Curated notes in `docs/release-notes/<version>.md` replace the generated commit list when present.
 

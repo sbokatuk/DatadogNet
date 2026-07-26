@@ -14,6 +14,22 @@ internal sealed class AndroidLogs : IDatadogLogs
     {
         options ??= new LoggerOptions();
 
+        // Logger.Builder.Build before Logs is enabled hands back a permanently dead no-op, and
+        // loggers are created early and cached (Datadog.Logger, DI singletons, one per ILogger
+        // category) — so an early logger defers its native until the SDK can make a live one.
+        if (CanCreateLiveLogger())
+        {
+            return CreateLiveLogger(options);
+        }
+
+        return new DeferredDatadogLogger(
+            () => CanCreateLiveLogger() ? CreateLiveLogger(options) : null);
+    }
+
+    private bool CanCreateLiveLogger() => Datadog.IsInitialized && IsEnabled;
+
+    private static AndroidLogger CreateLiveLogger(LoggerOptions options)
+    {
         var builder = new Logger.Builder()
             .SetNetworkInfoEnabled(options.NetworkInfoEnabled)
             .SetBundleWithRumEnabled(options.BundleWithRumEnabled)

@@ -19,8 +19,8 @@ namespace DatadogNet;
 /// <list type="bullet">
 /// <item>
 /// <b>iOS</b> — all of crash reporting. dd-sdk-ios has nothing built in; <c>DatadogCrashReporting</c>
-/// is a separate framework carrying PLCrashReporter. Without this package an iOS app reports no
-/// crashes.
+/// is a separate framework carrying KSCrash (3.x swapped it in for the 2.x line's PLCrashReporter).
+/// Without this package an iOS app reports no crashes.
 /// </item>
 /// <item>
 /// <b>Android</b> — native (NDK) crashes only. JVM-level crashes, which is where an unhandled .NET
