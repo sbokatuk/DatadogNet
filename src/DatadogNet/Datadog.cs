@@ -23,11 +23,12 @@ namespace DatadogNet;
 /// }
 /// </code>
 /// <para>
-/// <b>Nothing here throws because Datadog is unavailable.</b> On a Windows or Mac Catalyst head
-/// <see cref="IsSupported"/> is <see langword="false"/> and every call is a no-op, so shared MAUI
-/// code needs no platform conditionals. Calls made before <see cref="Initialize"/> are dropped the
-/// same way. Instrumentation that crashes the app it is measuring is worse than instrumentation
-/// that is missing.
+/// <b>Nothing here throws because Datadog is unavailable.</b> On a Windows head — or in a plain
+/// unit-test process — <see cref="IsSupported"/> is <see langword="false"/> and every call is a
+/// no-op, so shared MAUI code needs no platform conditionals. Calls made before
+/// <see cref="Initialize"/> are dropped the same way, though a logger obtained early starts
+/// delivering once the SDK is up. Instrumentation that crashes the app it is measuring is worse
+/// than instrumentation that is missing.
 /// </para>
 /// </remarks>
 public static partial class Datadog
@@ -36,7 +37,11 @@ public static partial class Datadog
     private static readonly Lazy<IDatadogLogs> LazyLogs = new(CreateLogs, isThreadSafe: true);
     private static readonly Lazy<IDatadogTracer> LazyTracer = new(CreateTracer, isThreadSafe: true);
     private static readonly Lazy<ISessionReplay> LazySessionReplay = new(CreateSessionReplay, isThreadSafe: true);
-    private static readonly Lazy<IDatadogLogger> LazyLogger = new(() => Logs.CreateLogger(), isThreadSafe: true);
+
+    // Not readonly: Stop() swaps in a fresh lazy. A logger materialised in one SDK epoch holds the
+    // old epoch's native and would be dead in the next; the other lazies hold adapters that resolve
+    // their native per call, so they carry across epochs and can stay frozen.
+    private static Lazy<IDatadogLogger> lazyLogger = new(() => Logs.CreateLogger(), isThreadSafe: true);
 
     private static readonly object InitializeGate = new();
 
@@ -44,8 +49,8 @@ public static partial class Datadog
     /// Whether this platform has a Datadog implementation at all.
     /// </summary>
     /// <remarks>
-    /// <see langword="true"/> on Android and iOS, <see langword="false"/> everywhere else — a
-    /// Windows or Mac Catalyst MAUI head, or a unit test running on the plain
+    /// <see langword="true"/> on Android, iOS and Mac Catalyst, <see langword="false"/> everywhere
+    /// else — a Windows MAUI head, or a unit test running on the plain
     /// <c>net9.0</c>/<c>net10.0</c> assembly. Worth branching on only when the alternative is doing
     /// real work whose result would be thrown away; the API itself needs no guarding.
     /// </remarks>
@@ -66,9 +71,10 @@ public static partial class Datadog
     /// <remarks>
     /// For an app that wants the single obvious logger and no ceremony. Use
     /// <see cref="IDatadogLogs.CreateLogger"/> when you want a name, a service, or a different
-    /// sampling rate.
+    /// sampling rate. Safe to touch before <see cref="Initialize"/>: it starts delivering at the
+    /// first write after the SDK is up (see <see cref="IDatadogLogger"/> for the exact contract).
     /// </remarks>
-    public static IDatadogLogger Logger => LazyLogger.Value;
+    public static IDatadogLogger Logger => lazyLogger.Value;
 
     /// <summary>Starts spans.</summary>
     public static IDatadogTracer Tracer => LazyTracer.Value;
@@ -229,6 +235,12 @@ public static partial class Datadog
             PlatformStop();
             Configuration = null;
             IsInitialized = false;
+
+            // The shared logger belongs to the epoch that made it; the next access after a
+            // re-Initialize must build against the new SDK instance, not write into the stopped
+            // one. Loggers the app created itself through Logs.CreateLogger are the app's to
+            // recreate — this type cannot reach them.
+            lazyLogger = new(() => Logs.CreateLogger(), isThreadSafe: true);
         }
     }
 

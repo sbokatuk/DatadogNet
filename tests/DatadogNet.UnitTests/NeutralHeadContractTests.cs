@@ -8,8 +8,9 @@ namespace DatadogNet.UnitTests;
 /// </summary>
 /// <remarks>
 /// This is what lets a multi-headed MAUI app call the façade from shared code with no conditionals —
-/// on Windows and Mac Catalyst the whole API is present and does nothing. It is also the behaviour
-/// before <see cref="Datadog.Initialize"/> on every platform.
+/// on Windows the whole API is present and does nothing, while Mac Catalyst gets the real SDK via
+/// the <c>DatadogNet.Mac</c> bindings. It is also the behaviour before
+/// <see cref="Datadog.Initialize"/> on every platform.
 /// <para>
 /// The rule has one deliberate exception, asserted below: <see cref="Datadog.Initialize"/> validates
 /// even where it cannot initialise, so a configuration mistake is caught on the developer's desktop

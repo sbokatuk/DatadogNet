@@ -12,6 +12,22 @@ internal sealed class IosLogs : IDatadogLogs
     {
         options ??= new LoggerOptions();
 
+        // DDLogger.Create before Logs is enabled hands back a permanently dead no-op, and loggers
+        // are created early and cached (Datadog.Logger, DI singletons, one per ILogger category) —
+        // so an early logger defers its native until the SDK can make a live one.
+        if (CanCreateLiveLogger())
+        {
+            return CreateLiveLogger(options);
+        }
+
+        return new DeferredDatadogLogger(
+            () => CanCreateLiveLogger() ? CreateLiveLogger(options) : null);
+    }
+
+    private bool CanCreateLiveLogger() => Datadog.IsInitialized && IsEnabled;
+
+    private static IosLogger CreateLiveLogger(LoggerOptions options)
+    {
         // DDLogger.Create is DatadogNet.iOS's convenience form. The generated type has only the
         // designated initializer, which takes all eight settings positionally with no defaults.
         var native = DDLogger.Create(

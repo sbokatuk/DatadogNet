@@ -65,6 +65,9 @@ public static class ServiceCollectionExtensions
     /// <see cref="AddDatadog(IServiceCollection, DatadogConfiguration, LoggerOptions?)"/> and let
     /// it initialise too; this overload exists for hosts whose SDK is initialised elsewhere, and
     /// for test hosts that want the registrations resolving the no-op neutral implementation.
+    /// The <see cref="IDatadogLogger"/> singleton is safe to register this early even though the
+    /// SDK is not up yet: a logger created before <see cref="Datadog.Initialize"/> starts
+    /// delivering at the first write after it — see <see cref="IDatadogLogger"/>.
     /// </remarks>
     public static IServiceCollection AddDatadog(
         this IServiceCollection services,

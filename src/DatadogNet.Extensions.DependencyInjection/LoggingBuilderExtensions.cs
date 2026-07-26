@@ -25,9 +25,10 @@ public static class LoggingBuilderExtensions
     /// <returns><paramref name="builder"/>, for chaining.</returns>
     /// <remarks>
     /// An app that already logs through <c>ILogger&lt;T&gt;</c> gets its logs into Datadog with no
-    /// call-site changes, each entry tagged with its category and correlated with the RUM view it
-    /// was written in. In a MAUI app <c>UseDatadog</c> calls this for you; call it directly from
-    /// any other <c>Microsoft.Extensions.Logging</c> host.
+    /// call-site changes, each entry tagged with its category, carrying its message-template values
+    /// and scope values as attributes, and correlated with the RUM view it was written in. In a
+    /// MAUI app <c>UseDatadog</c> calls this for you; call it directly from any other
+    /// <c>Microsoft.Extensions.Logging</c> host.
     /// </remarks>
     public static ILoggingBuilder AddDatadog(
         this ILoggingBuilder builder,
@@ -40,9 +41,16 @@ public static class LoggingBuilderExtensions
         // TryAddEnumerable de-duplicates on the descriptor's implementation *type*, and a
         // factory-only descriptor has none - so it throws "Implementation type cannot be inferred"
         // rather than registering anything.
+        //
+        // The provider takes the host's IDatadogLogs when one is registered - the same instance
+        // AddDatadog(IServiceCollection) registers, so this changes nothing for an app, but it is
+        // what lets a test host watch the bridge through a fake.
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Singleton<ILoggerProvider, DatadogLoggerProvider>(
-                _ => new DatadogLoggerProvider(loggerOptions, minimumLogLevel)));
+                sp => new DatadogLoggerProvider(
+                    sp.GetService<IDatadogLogs>(),
+                    loggerOptions,
+                    minimumLogLevel)));
 
         return builder;
     }
