@@ -2,6 +2,11 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 
+// The Android heads' implicit global usings put Android.App.Activity in scope, and a bare
+// `Activity` is then ambiguous on exactly those TFMs. The alias states which Activity this whole
+// file is about.
+using Activity = System.Diagnostics.Activity;
+
 namespace DatadogNet;
 
 /// <summary>

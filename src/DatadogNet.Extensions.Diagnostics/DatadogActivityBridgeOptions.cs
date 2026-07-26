@@ -1,5 +1,9 @@
 using System.Diagnostics;
 
+// See DatadogActivityBridge.cs: the Android heads' global usings make a bare `Activity`
+// ambiguous, so the alias names the one this package is about.
+using Activity = System.Diagnostics.Activity;
+
 namespace DatadogNet;
 
 /// <summary>
