@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      The windows stub head's whole pitch is one unconditional PackageReference - so something has
+      to actually restore the packed windows asset and compile UseDatadog against it, as a
+      consumer. The MAUI *sample* cannot be that something: a windows-headed MAUI app runs WinUI's
+      XamlCompiler.exe, a Windows-only executable, and this repository builds on macOS runners.
+      A XAML-free MAUI class library is the part that CAN compile here, and it is exactly the part
+      the stub promises: restore resolves net*-windows, and the UseDatadog surface compiles.
+
+      Like the sample, this consumes the packed packages from ./artifacts via NuGet.config's local
+      feed - a ProjectReference would bypass the packed windows asset entirely, which is the thing
+      under test.
+    -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <UseMaui>true</UseMaui>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <DatadogPackageVersion Condition=" '$(DatadogPackageVersion)' == '' ">$(VersionPrefix)</DatadogPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DatadogNet.Maui" Version="$(DatadogPackageVersion)" />
+  </ItemGroup>
+
+</Project>

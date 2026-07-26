@@ -326,13 +326,11 @@ jobs:
 
       # The sample consumes the packed packages exactly as a user would, so it is the only thing
       # that checks the API is still usable the way the README documents - including DatadogNet.Maui,
-      # which the device checks deliberately do not reference. The windows TFM compiles the stub
-      # head from a consumer - EnableWindowsTargeting works on these macOS runners the same way it
-      # does for the package's own windows head.
+      # which the device checks deliberately do not reference.
       - name: Build the sample against the packed packages
         run: |
           ( cd "${RUNNER_TEMP}/sample-sdk" \
-            && for tfm in net10.0-android36.0 net10.0-ios26.0 net10.0-maccatalyst26.0 net10.0-windows10.0.19041.0; do
+            && for tfm in net10.0-android36.0 net10.0-ios26.0 net10.0-maccatalyst26.0; do
                  echo "==> ${tfm}"
                  dotnet build "${GITHUB_WORKSPACE}/samples/DatadogNet.Maui.Sample/DatadogNet.Maui.Sample.csproj" \
                    --configuration Debug \
@@ -340,3 +338,14 @@ jobs:
                    -p:DatadogPackageVersion="${{ inputs.version }}" \
                    || exit 1
                done )
+
+      # The windows stub head, compiled from a consumer. Not a sample TFM: a windows-headed MAUI
+      # *app* runs WinUI's XamlCompiler.exe, a Windows-only executable, so on these macOS runners
+      # the consumer compile is a XAML-free MAUI class library - which is exactly the packaging
+      # promise under test (restore resolves the windows asset, UseDatadog compiles against it).
+      - name: Build the windows-head consumer check
+        run: |
+          ( cd "${RUNNER_TEMP}/sample-sdk" \
+            && dotnet build "${GITHUB_WORKSPACE}/tests/DatadogNet.Maui.WindowsHeadCheck/DatadogNet.Maui.WindowsHeadCheck.csproj" \
+                 --configuration Debug \
+                 -p:DatadogPackageVersion="${{ inputs.version }}" )

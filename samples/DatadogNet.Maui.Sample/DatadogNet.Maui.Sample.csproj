@@ -8,17 +8,10 @@
       NullReferenceException inside the .NET Android SDK. That is an SDK defect rather than anything
       the bindings do, and it is why the packages' floor is net9 while this sample's is net10.
     -->
-    <TargetFrameworks>net10.0-android36.0;net10.0-ios26.0;net10.0-maccatalyst26.0;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks>net10.0-android36.0;net10.0-ios26.0;net10.0-maccatalyst26.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
-    <!--
-      The windows head compiles on this repository's macOS runners, the same arrangement
-      DatadogNet.Maui itself uses for its stub head - and consuming that head from a real app TFM
-      is the point: the stub's whole pitch is one unconditional PackageReference, so something has
-      to actually compile UseDatadog from a windows-headed consumer against the packed packages.
-    -->
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
@@ -36,8 +29,6 @@
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">12.2</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
-    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
-    <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
   </PropertyGroup>
 
   <!--
