@@ -20,6 +20,7 @@ jobs:
       prerelease: ${{ steps.resolve.outputs.prerelease }}
       ios-version: ${{ steps.resolve.outputs.ios-version }}
       android-version: ${{ steps.resolve.outputs.android-version }}
+      mac-version: ${{ steps.resolve.outputs.mac-version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +39,8 @@ jobs:
           # in the notes are read from the working tree rather than derived from the tag.
           ios=$(sed -n 's:.*<DatadogNetiOSVersion>\(.*\)</DatadogNetiOSVersion>.*:\1:p' Directory.Build.props | head -1)
           android=$(sed -n 's:.*<DatadogNetAndroidVersion>\(.*\)</DatadogNetAndroidVersion>.*:\1:p' Directory.Build.props | head -1)
-          if [ -z "${ios}" ] || [ -z "${android}" ]; then
+          mac=$(sed -n 's:.*<DatadogNetMacVersion>\(.*\)</DatadogNetMacVersion>.*:\1:p' Directory.Build.props | head -1)
+          if [ -z "${ios}" ] || [ -z "${android}" ] || [ -z "${mac}" ]; then
             echo "::error::could not read the platform package versions from Directory.Build.props"
             exit 1
           fi
@@ -60,6 +62,7 @@ jobs:
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
           echo "ios-version=${ios}" >> "$GITHUB_OUTPUT"
           echo "android-version=${android}" >> "$GITHUB_OUTPUT"
+          echo "mac-version=${mac}" >> "$GITHUB_OUTPUT"
           echo "Releasing ${version} (prerelease=${prerelease})" >> "$GITHUB_STEP_SUMMARY"
 
   build:
@@ -125,6 +128,7 @@ jobs:
         env:
           IOS_VERSION: ${{ needs.version.outputs.ios-version }}
           ANDROID_VERSION: ${{ needs.version.outputs.android-version }}
+          MAC_VERSION: ${{ needs.version.outputs.mac-version }}
         run: |
           previous=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
 
@@ -155,22 +159,32 @@ jobs:
 
             echo "## Packages"
             echo
-            echo "Built against [\`DatadogNet.iOS ${IOS_VERSION}\`](https://github.com/sbokatuk/DatadogNet.iOS/releases/tag/v${IOS_VERSION}) and [\`DatadogNet.Android ${ANDROID_VERSION}\`](https://github.com/sbokatuk/DatadogNet.Android/releases/tag/v${ANDROID_VERSION}) — dd-sdk-ios \`${IOS_VERSION%.*}\` and dd-sdk-android \`${ANDROID_VERSION%.*}\`."
+            echo "Built against [\`DatadogNet.iOS ${IOS_VERSION}\`](https://github.com/sbokatuk/DatadogNet.iOS/releases/tag/v${IOS_VERSION}), [\`DatadogNet.Android ${ANDROID_VERSION}\`](https://github.com/sbokatuk/DatadogNet.Android/releases/tag/v${ANDROID_VERSION}) and [\`DatadogNet.Mac ${MAC_VERSION}\`](https://github.com/sbokatuk/DatadogNet.Mac/releases/tag/v${MAC_VERSION}) — dd-sdk-ios \`${IOS_VERSION%.*}\` (iOS and, built from source, Mac Catalyst) and dd-sdk-android \`${ANDROID_VERSION%.*}\`."
             echo
-            echo "> The version names the *iOS* line, because the two native SDKs are released on"
+            echo "> The version names the *iOS* line, because the native SDKs are released on"
             echo "> separate cadences and never share a version number. The fourth component is this"
             echo "> repository's own revision."
             echo
             echo "| Package | Target frameworks | NuGet |"
             echo "| --- | --- | --- |"
-            # Generated from build/packages.tsv, the same file the build script and the package
-            # tests read, so this table cannot drift out of step with what was actually published.
-            while IFS=$'\t' read -r id heads _rest; do
+            # The id list comes from build/packages.tsv; the target frameworks come from the packed
+            # .nupkg itself - the artifact being published, already downloaded above. The previous
+            # hardcoded lists proved the point of not doing that: they shipped a release that
+            # omitted every maccatalyst head, on the very release that introduced them.
+            while IFS=$'\t' read -r id _heads _rest; do
               case "${id}" in ''|\#*) continue ;; esac
-              case "${heads}" in
-                mobile) tfms='`net8.0-android34.0`, `net8.0-ios18.0`, `net9.0-android35.0`, `net9.0-ios18.0`, `net10.0-android36.0`, `net10.0-ios26.0`' ;;
-                *)      tfms='`net8.0`, `net8.0-android34.0`, `net8.0-ios18.0`, `net9.0`, `net9.0-android35.0`, `net9.0-ios18.0`, `net10.0`, `net10.0-android36.0`, `net10.0-ios26.0`' ;;
-              esac
+              pkg="artifacts/${id}.${VERSION}.nupkg"
+              if [ ! -f "${pkg}" ]; then
+                echo "::error::release notes: ${pkg} is not among the built artifacts"
+                exit 1
+              fi
+              tfms=$(unzip -l "${pkg}" \
+                | grep -oE 'lib/[^/ ]+/' | sed -E 's:^lib/::; s:/$::' | sort -uV \
+                | awk 'BEGIN { sep="" } { printf "%s`%s`", sep, $0; sep=", " } END { print "" }')
+              if [ -z "${tfms}" ]; then
+                echo "::error::release notes: ${pkg} contains no lib/<tfm>/ assets"
+                exit 1
+              fi
               echo "| \`${id}\` | ${tfms} | [${VERSION}](https://www.nuget.org/packages/${id}/${VERSION}) |"
             done < build/packages.tsv
             echo
@@ -180,10 +194,10 @@ jobs:
             echo
             echo "## Licensing"
             echo
-            echo "The code in this repository is MIT. It depends on DatadogNet.iOS and"
-            echo "DatadogNet.Android, whose packages ship native binaries built and published by"
-            echo "Datadog under Apache-2.0. Each package declares \`MIT AND Apache-2.0\` and ships"
-            echo "both texts under \`licenses/\`."
+            echo "The code in this repository is MIT. It depends on DatadogNet.iOS,"
+            echo "DatadogNet.Android and DatadogNet.Mac, whose packages ship native binaries built"
+            echo "from Datadog's Apache-2.0 sources. Each package declares \`MIT AND Apache-2.0\`"
+            echo "and ships both texts under \`licenses/\`."
           } > release-notes.md
 
           cat release-notes.md >> "$GITHUB_STEP_SUMMARY"

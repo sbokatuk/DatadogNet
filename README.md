@@ -164,6 +164,19 @@ constraint: the .NET 9 band builds `net8.0-ios18.0` outright.
 > `androidx.savedstate` declares `minSdkVersion 23`, and the manifest merger takes the maximum
 > across the graph — so an app declaring 21 fails to build. 23 is the real floor.
 
+### Version map
+
+The whole stack, stated once. Everything else in this README that names a version is prose around
+this row; the CI readme-check compares it against `Directory.Build.props`, so it cannot go stale
+silently:
+
+| DatadogNet | dd-sdk-ios | dd-sdk-android | DatadogNet.iOS pin | DatadogNet.Android pin | DatadogNet.Mac pin | .NET | Minimum OS |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3.14.0.4 | 3.14.0 | 3.12.1 | 3.14.0.3 | 3.12.1.3 | 3.14.0.2 | net8 · net9 · net10 | Android 23 · iOS 12.2 · macCatalyst 15.0 (macOS 12) |
+
+Earlier lines are on the [releases page](https://github.com/sbokatuk/DatadogNet/releases), each
+with the same numbers in its notes.
+
 ---
 
 ## Installing
@@ -480,12 +493,14 @@ order, apart from the middle image level above.
 ## How this repository works
 
 ```
-nuget.org: DatadogNet.iOS 3.14.0.3        nuget.org: DatadogNet.Android 3.12.1.3
-        │  (dd-sdk-ios 3.14.0)                    │  (dd-sdk-android 3.12.1)
-        └──────────────┬──────────────────────────┘
-                       ▼
+nuget.org: DatadogNet.iOS 3.14.0.3   DatadogNet.Android 3.12.1.3   DatadogNet.Mac 3.14.0.2
+        │  (dd-sdk-ios 3.14.0)          │  (dd-sdk-android 3.12.1)     │  (dd-sdk-ios 3.14.0,
+        │                               │                              │   built for Catalyst)
+        └───────────────────────────────┼──────────────────────────────┘
+                                        ▼
         src/DatadogNet/Platforms/{iOS,Android,Unsupported}/
                        │  one shared API, three implementations, one selected per target framework
+                       │  (the maccatalyst heads compile Platforms/iOS over the .Mac bindings)
                        ▼
         src/DatadogNet.{Extensions.DependencyInjection,CrashReporting,WebView,Maui}/
                        │  build/BuildNugets.sh — pack twice (net9 band, net10 band), then merge
@@ -493,11 +508,21 @@ nuget.org: DatadogNet.iOS 3.14.0.3        nuget.org: DatadogNet.Android 3.12.1.3
                 artifacts/*.nupkg  ──►  nuget.org
 ```
 
-Nothing native is bound here and nothing is downloaded: both platform package sets come from
-nuget.org, pinned to an exact version rather than a range. They are pinned because this layer calls
-into the hand-written convenience APIs in both repositories — `RumMonitorExtensions`,
-`DDRUMMonitor.Ergonomics` and friends — which no compatibility promise covers, and a floating
-reference would turn a change there into a build break in somebody's app rather than here.
+Nothing native is bound here and nothing is downloaded: all three platform package sets come from
+nuget.org, each pinned to a single version. The pin is what NuGet calls a minimum — `>= 3.14.0.3`
+in the packed nuspec, not an exact requirement — and default resolution lands exactly on it. The
+pin exists because this layer calls into the hand-written convenience APIs in the binding
+repositories — `RumMonitorExtensions`, `DDRUMMonitor.Ergonomics` and friends — which no
+compatibility promise covers beyond "the pinned revision has them".
+
+**Running ahead of the pins.** Because the pin is a floor, an app can add a direct
+`PackageReference` to a *newer* binding revision and the façade will compile against it — the
+supported escape hatch for consuming an emergency binding patch before the façade re-pins. What
+that keeps working: anything on the same native SDK line (the first three version components),
+since binding revisions over one native release only add. What it does not: a binding that moves
+to a **new native SDK version** may rename or drop convenience members the façade calls, and the
+failure then appears in *your* build. Check this repository for a release that re-pins before
+jumping native lines.
 
 Building the 2.x façade turned up a set of gaps in those two repositories, including one that made
 iOS tracing unusable from C# outright — [`docs/upstream-changes.md`](docs/upstream-changes.md) is

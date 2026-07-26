@@ -9,7 +9,9 @@
 #     expectation: .iOS/.Android/.Mac pins are binding packages with their own release line,
 #     everything else is this repository's own set at $(VersionPrefix).
 #   - the device-check examples (run-simulator-tests.sh / run-emulator-tests.sh <version> ...).
-#   - the architecture diagram's "DatadogNet.iOS <v>" / "DatadogNet.Android <v>" mentions.
+#   - the architecture diagram's "DatadogNet.iOS <v>" / ".Android <v>" / ".Mac <v>" mentions.
+#   - the Version map row: the one table stating the whole stack must exist and must carry
+#     exactly the versions the props build against.
 # Prose that explains the version *scheme* ("3.14.0.1 is dd-sdk-ios 3.14.0, binding revision 1")
 # is deliberately not checked - it describes the format, not the current release.
 set -eu
@@ -54,12 +56,13 @@ for token in $(grep -oE 'run-(simulator|emulator)-tests\.sh +[0-9][0-9.]*' "$rea
   fi
 done
 
-for mention in $(grep -oE 'DatadogNet\.(iOS|Android) +[0-9][0-9.]*' "$readme"); do
-  repo=$(printf '%s' "$mention" | grep -oE 'iOS|Android')
+for mention in $(grep -oE 'DatadogNet\.(iOS|Android|Mac) +[0-9][0-9.]*' "$readme"); do
+  repo=$(printf '%s' "$mention" | grep -oE 'iOS|Android|Mac')
   ver=$(printf '%s' "$mention" | grep -oE '[0-9][0-9.]*$')
   case "$repo" in
     iOS)     expected="$ios_version" ;;
     Android) expected="$android_version" ;;
+    Mac)     expected="$mac_version" ;;
   esac
   if [ "$ver" != "$expected" ]; then
     echo "README shows DatadogNet.$repo $ver, but the pinned binding version is $expected" >&2
@@ -67,6 +70,17 @@ for mention in $(grep -oE 'DatadogNet\.(iOS|Android) +[0-9][0-9.]*' "$readme"); 
   fi
 done
 IFS=$old_ifs
+
+# The Version map row. Built from the same props the packages are, so a version bump that forgets
+# the table fails here rather than shipping a matrix that contradicts the packages.
+native_version="$(prop DatadogNativeVersion)"
+android_native_version="$(prop DatadogAndroidNativeVersion)"
+map_row="| $version | $native_version | $android_native_version | $ios_version | $android_version | $mac_version |"
+if ! grep -qF "$map_row" "$readme"; then
+  echo "README's Version map row is missing or stale - expected a row starting:" >&2
+  echo "  $map_row" >&2
+  bad=1
+fi
 
 if [ "$bad" -ne 0 ]; then
   echo "CheckReadmeVersions: README.md is stale - update the versions above (current: $version)" >&2
