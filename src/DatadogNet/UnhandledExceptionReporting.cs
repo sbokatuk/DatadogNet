@@ -1,11 +1,13 @@
-namespace DatadogNet.Maui;
+namespace DatadogNet;
 
 /// <summary>
 /// Reports exceptions nobody caught as RUM errors and log entries.
 /// </summary>
 /// <remarks>
-/// Enabled by <see cref="MauiAppBuilderExtensions.UseDatadog"/> unless
-/// <see cref="DatadogMauiOptions.TrackUnhandledExceptions"/> is off.
+/// A MAUI app gets this enabled by <c>UseDatadog</c> unless its options turn it off. Every other
+/// host — a plain .NET Android or iOS app, a background service, a generic host using the
+/// dependency-injection package — calls <see cref="Enable"/> once, right after
+/// <see cref="Datadog.Initialize"/>.
 /// <para>
 /// This is not a replacement for <c>DatadogNet.CrashReporting</c>, and the two report different
 /// things about the same failure. A crash reporter sees the process die and files a native stack;
@@ -13,8 +15,16 @@ namespace DatadogNet.Maui;
 /// managed frames — which is what makes the error searchable by exception type rather than by
 /// memory address.
 /// </para>
+/// <para>
+/// Hooks <see cref="AppDomain.UnhandledException"/>,
+/// <see cref="TaskScheduler.UnobservedTaskException"/> (which never terminates the process and is
+/// otherwise invisible), and each platform's own boundary — Android's
+/// <c>UnhandledExceptionRaiser</c> and Apple's managed-exception marshalling — where a failure can
+/// end the app without ever reaching the <c>AppDomain</c> hook. A failure seen by more than one
+/// hook is reported once.
+/// </para>
 /// </remarks>
-internal static partial class UnhandledExceptionReporting
+public static partial class UnhandledExceptionReporting
 {
     private static readonly object Gate = new();
 
@@ -29,7 +39,15 @@ internal static partial class UnhandledExceptionReporting
 
     private static bool enabled;
 
-    internal static void Enable()
+    /// <summary>
+    /// Starts reporting. Safe to call more than once; later calls do nothing.
+    /// </summary>
+    /// <remarks>
+    /// Enable after <see cref="Datadog.Initialize"/> for the ordinary case. Enabling earlier is
+    /// harmless — the hooks report through the same façade as everything else, so a failure before
+    /// the SDK is up is dropped rather than thrown at.
+    /// </remarks>
+    public static void Enable()
     {
         lock (Gate)
         {

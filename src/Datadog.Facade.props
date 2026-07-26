@@ -33,6 +33,18 @@
       request builds against.
     -->
     <NoWarn>$(NoWarn);NU5104;NU1608</NoWarn>
+
+    <!--
+      Trim and AOT analyzers on every head, not only where the mobile SDKs default them on. The
+      shared sources are deliberately reflection-free (the configuration binder is hand-rolled for
+      exactly this reason), and the analyzers are what keep that true as the code moves -
+      TreatWarningsAsErrors makes a regression fail the build rather than a consumer's trimmed app.
+      IsTrimmable is deliberately NOT claimed, matching the binding repositories' stance: how the
+      platform heads behave under aggressive trimming is the native bindings' story, and a marker
+      that invites the trimmer in is a promise this layer alone cannot keep.
+    -->
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
   </PropertyGroup>
 
   <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
