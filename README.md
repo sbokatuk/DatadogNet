@@ -649,13 +649,14 @@ is a two-line edit and a test run. The exception is a major: see the note on 3.x
 
 ## Releasing
 
-Tag it. `v3.14.0.5` builds, tests, publishes all five packages to nuget.org via trusted publishing,
+Tag it. `v3.14.0.5` builds, tests, publishes all six packages to nuget.org via trusted publishing,
 and creates a GitHub release.
 
 Pull requests publish a `-beta.<pr>.<run>` prerelease of the whole set.
 
 Both run the same [`build.yml`](.github/workflows/build.yml): pack, package tests, the simulator and
-emulator checks, and — on pull requests — a compile of the MAUI sample against the packed packages.
+emulator checks, and — on pull requests — a compile of the MAUI sample against the packed packages,
+plus the windows-head consumer check.
 
 Curated notes in `docs/release-notes/<version>.md` replace the generated commit list when present.
 
