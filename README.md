@@ -679,6 +679,12 @@ Report views yourself with `Datadog.Rum.StartView` from your router.
 **HTTP calls do not appear as RUM resources.** The client has no `DatadogHttpMessageHandler`. Neither
 SDK's automatic instrumentation sees `HttpClient`; see [HTTP](#http).
 
+**`Undefined symbols for architecture arm64: "_OBJC_CLASS_$_DD…"` building for a real iPhone.**
+The prebuilt dd-sdk-ios device slices ship without static Objective-C registration for 41 classes,
+so every iOS device link failed while simulator builds worked. Fixed in the DatadogNet.iOS binding
+packages 3.14.0.5, which this repository's packages pull in from that version's pin onward — see
+[docs/device-arm64-missing-objc-class-symbols.md](docs/device-arm64-missing-objc-class-symbols.md).
+
 **Traces do not continue into my backend.** The host is not in `FirstPartyHosts`, which is an
 allowlist and matched by suffix on a label boundary — `example.com` covers `api.example.com` but not
 `notexample.com`.
