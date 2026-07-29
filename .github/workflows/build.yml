@@ -8,6 +8,16 @@ name: build
 on:
   workflow_call:
     inputs:
+      verify:
+        description: >
+          Whether to run the verification jobs — package validation, the sample builds, the
+          Release link checks and the e2e suites. Pull requests leave it at true, and are the only
+          place any of this runs. Releases pass false: the tagged commit was already verified on
+          its pull request, so a tag packs and publishes and nothing more. The gate is the same
+          input, with the same name and the same meaning, in every repository.
+        required: false
+        default: true
+        type: boolean
       version:
         description: NuGet version to stamp on every package.
         required: true
@@ -32,16 +42,6 @@ on:
         required: false
         default: 35
         type: number
-      build-sample:
-        description: >
-          Whether to compile the MAUI sample against the packed packages. Defaults to true, because
-          it is a verification step and a new caller should get it. Releases turn it off: by then
-          the same commit has already been through it on the pull request, and it would otherwise
-          put a MAUI workload install between the packages being built and being published.
-        required: false
-        default: true
-        type: boolean
-
 env:
   DOTNET_NOLOGO: 'true'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
@@ -104,6 +104,7 @@ jobs:
         run: ./build/BuildNugets.sh "${{ inputs.version }}"
 
       - name: Validate packages
+        if: ${{ inputs.verify }}
         env:
           DATADOG_PACKAGE_VERSION: ${{ inputs.version }}
         run: dotnet test tests/DatadogNet.PackageTests --logger 'trx;LogFileName=package-tests.trx'
@@ -119,7 +120,7 @@ jobs:
           retention-days: 7
 
       - name: Upload test results
-        if: always()
+        if: ${{ inputs.verify && (always()) }}
         uses: actions/upload-artifact@v4
         with:
           name: package-test-results
@@ -129,6 +130,7 @@ jobs:
 
   e2e-ios:
     name: simulator checks (${{ matrix.target-framework }})
+    if: ${{ inputs.verify }}
     timeout-minutes: 45
     needs: pack
     runs-on: macos-15
@@ -181,6 +183,7 @@ jobs:
 
   e2e-android:
     name: emulator checks (${{ matrix.target-framework }})
+    if: ${{ inputs.verify }}
     timeout-minutes: 60
     needs: pack
     strategy:
@@ -283,7 +286,7 @@ jobs:
     name: build sample app
     timeout-minutes: 45
     needs: pack
-    if: ${{ inputs.build-sample }}
+    if: ${{ inputs.verify }}
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -349,3 +352,102 @@ jobs:
             && dotnet build "${GITHUB_WORKSPACE}/tests/DatadogNet.Maui.WindowsHeadCheck/DatadogNet.Maui.WindowsHeadCheck.csproj" \
                  --configuration Debug \
                  -p:DatadogPackageVersion="${{ inputs.version }}" )
+
+  # The sample job above compiles in Debug, which restores, resolves and links but never runs the
+  # linker or the AOT compiler — and those are what a consumer actually ships. DatadogNet.Mac has
+  # carried a Release leg for exactly this reason, with the note that "the ILLink/AOT behaviour
+  # Release turns on has broken binding consumers that built fine in Debug"; this is the same
+  # check for the MAUI metapackage, on the two platforms where Release changes the most.
+  #
+  # Affordable here in a way it is not everywhere: the Datadog xcframeworks are small, unlike the
+  # WebRTC-sized payloads in AntMedia.Net and Red5Pro.Streaming.Net, whose build files record a
+  # measured 38-minute iOS Release build and are deliberately left in Debug.
+  link-release:
+    name: Release link check (${{ matrix.platform }})
+    if: ${{ inputs.verify }}
+    timeout-minutes: 60
+    needs: pack
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Android on Linux: R8 and managed trimming need no Apple toolchain, and the ubuntu
+          # runner bills at a tenth of the macOS one.
+          - platform: android
+            os: ubuntu-latest
+            tfm: net10.0-android36.0
+            args: ''
+          - platform: ios
+            os: macos-15
+            tfm: net10.0-ios26.0
+            args: '-p:RuntimeIdentifier=ios-arm64 -p:EnableCodeSigning=false'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        if: ${{ matrix.platform == 'ios' }}
+        uses: ./.github/actions/select-xcode
+
+      # The sample targets the net10 band — see the note on the sample job.
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install the MAUI workload for the .NET 10 band
+        run: |
+          # Workloads are installed per SDK band and the SDK is resolved from the working
+          # directory, so this has to run from the same scratch global.json the build uses — see
+          # the longer note on the sample job.
+          dir="${RUNNER_TEMP}/sample-sdk"
+          mkdir -p "${dir}"
+          ( cd "${dir}" \
+            && dotnet new globaljson \
+                 --sdk-version "$(dotnet --list-sdks | grep '^10\.' | tail -1 | cut -d' ' -f1)" --force \
+            && dotnet workload install maui-${{ matrix.platform }} )
+
+      - name: Set up the Android SDK
+        if: ${{ matrix.platform == 'android' }}
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36'
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts
+
+      # Code signing off on iOS, because a public runner has neither a certificate nor a
+      # provisioning profile, and neither affects whether the thing links.
+      #
+      # TargetFrameworks is overridden, not just --framework: the implicit restore deliberately
+      # drops the TargetFramework --framework sets, so it evaluates every target framework in the
+      # project and demands a workload for each. Only one platform's workload is installed here,
+      # so the sample's other two heads failed restore before a single line was compiled -
+      # NETSDK1147 on macOS (android not installed) and NETSDK1178 on Linux, where the iOS packs
+      # do not exist at all and no amount of installing would have helped.
+      - name: Link the sample in Release
+        run: |
+          ( cd "${RUNNER_TEMP}/sample-sdk" \
+            && dotnet build "${GITHUB_WORKSPACE}/samples/DatadogNet.Maui.Sample/DatadogNet.Maui.Sample.csproj" \
+                 --configuration Release \
+                 --framework "${{ matrix.tfm }}" \
+                 -p:TargetFrameworks="${{ matrix.tfm }}" \
+                 ${{ matrix.args }} \
+                 -p:DatadogPackageVersion="${{ inputs.version }}" )
+
+          # Asserted rather than assumed: a Release build that trimmed the binding away, or that
+          # never got as far as packaging, would still leave a bin/ directory behind.
+          out="samples/DatadogNet.Maui.Sample/bin/Release/${{ matrix.tfm }}"
+          if [ "${{ matrix.platform }}" = 'android' ]; then
+            artefact="$(find "${out}" -name '*.apk' | head -1)"
+          else
+            artefact="$(find "${out}/ios-arm64" -maxdepth 1 -name '*.app' | head -1)"
+          fi
+          if [ -z "${artefact}" ]; then
+            echo "::error::no Release output under ${out} — the ${{ matrix.platform }} Release build did not package"
+            exit 1
+          fi
+          echo "==> ${artefact}"

@@ -174,7 +174,7 @@ silently:
 
 | DatadogNet | dd-sdk-ios | dd-sdk-android | DatadogNet.iOS pin | DatadogNet.Android pin | DatadogNet.Mac pin | .NET | Minimum OS |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 3.14.0.5 | 3.14.0 | 3.12.1 | 3.14.0.3 | 3.12.1.3 | 3.14.0.2 | net8 · net9 · net10 | Android 23 · iOS 12.2 · macCatalyst 15.0 (macOS 12) |
+| 3.14.0.5 | 3.14.0 | 3.12.1 | 3.14.0.5 | 3.12.1.3 | 3.14.0.2 | net8 · net9 · net10 | Android 23 · iOS 12.2 · macCatalyst 15.0 (macOS 12) |
 
 Earlier lines are on the [releases page](https://github.com/sbokatuk/DatadogNet/releases), each
 with the same numbers in its notes.
@@ -513,7 +513,7 @@ order, apart from the middle image level above.
 ## How this repository works
 
 ```
-nuget.org: DatadogNet.iOS 3.14.0.3   DatadogNet.Android 3.12.1.3   DatadogNet.Mac 3.14.0.2
+nuget.org: DatadogNet.iOS 3.14.0.5   DatadogNet.Android 3.12.1.3   DatadogNet.Mac 3.14.0.2
         │  (dd-sdk-ios 3.14.0)          │  (dd-sdk-android 3.12.1)     │  (dd-sdk-ios 3.14.0,
         │                               │                              │   built for Catalyst)
         └───────────────────────────────┼──────────────────────────────┘
@@ -529,7 +529,7 @@ nuget.org: DatadogNet.iOS 3.14.0.3   DatadogNet.Android 3.12.1.3   DatadogNet.Ma
 ```
 
 Nothing native is bound here and nothing is downloaded: all three platform package sets come from
-nuget.org, each pinned to a single version. The pin is what NuGet calls a minimum — `>= 3.14.0.3`
+nuget.org, each pinned to a single version. The pin is what NuGet calls a minimum — `>= 3.14.0.5`
 in the packed nuspec, not an exact requirement — and default resolution lands exactly on it. The
 pin exists because this layer calls into the hand-written convenience APIs in the binding
 repositories — `RumMonitorExtensions`, `DDRUMMonitor.Ergonomics` and friends — which no
@@ -678,6 +678,12 @@ Report views yourself with `Datadog.Rum.StartView` from your router.
 
 **HTTP calls do not appear as RUM resources.** The client has no `DatadogHttpMessageHandler`. Neither
 SDK's automatic instrumentation sees `HttpClient`; see [HTTP](#http).
+
+**`Undefined symbols for architecture arm64: "_OBJC_CLASS_$_DD…"` building for a real iPhone.**
+The prebuilt dd-sdk-ios device slices ship without static Objective-C registration for 41 classes,
+so every iOS device link failed while simulator builds worked. Fixed in the DatadogNet.iOS binding
+packages 3.14.0.5, which is what this repository pins — so restoring `DatadogNet` pulls the fix in.
+See [docs/device-arm64-missing-objc-class-symbols.md](docs/device-arm64-missing-objc-class-symbols.md).
 
 **Traces do not continue into my backend.** The host is not in `FirstPartyHosts`, which is an
 allowlist and matched by suffix on a label boundary — `example.com` covers `api.example.com` but not
