@@ -421,12 +421,20 @@ jobs:
 
       # Code signing off on iOS, because a public runner has neither a certificate nor a
       # provisioning profile, and neither affects whether the thing links.
+      #
+      # TargetFrameworks is narrowed to the one under test rather than left to --framework alone:
+      # --framework picks which head to build, but restore and the workload import still run over
+      # every framework the project declares, so on a runner carrying only maui-${{ matrix.platform }}
+      # the other heads fail with NETSDK1178 ("depends on workload packs that do not exist") before
+      # anything is compiled. Only this job installs a single workload; the sample job builds all
+      # three heads and installs all three.
       - name: Link the sample in Release
         run: |
           ( cd "${RUNNER_TEMP}/sample-sdk" \
             && dotnet build "${GITHUB_WORKSPACE}/samples/DatadogNet.Maui.Sample/DatadogNet.Maui.Sample.csproj" \
                  --configuration Release \
                  --framework "${{ matrix.tfm }}" \
+                 -p:TargetFrameworks="${{ matrix.tfm }}" \
                  ${{ matrix.args }} \
                  -p:DatadogPackageVersion="${{ inputs.version }}" )
 
