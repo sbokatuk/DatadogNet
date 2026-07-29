@@ -421,12 +421,20 @@ jobs:
 
       # Code signing off on iOS, because a public runner has neither a certificate nor a
       # provisioning profile, and neither affects whether the thing links.
+      #
+      # TargetFrameworks is overridden, not just --framework: the implicit restore deliberately
+      # drops the TargetFramework --framework sets, so it evaluates every target framework in the
+      # project and demands a workload for each. Only one platform's workload is installed here,
+      # so the sample's other two heads failed restore before a single line was compiled -
+      # NETSDK1147 on macOS (android not installed) and NETSDK1178 on Linux, where the iOS packs
+      # do not exist at all and no amount of installing would have helped.
       - name: Link the sample in Release
         run: |
           ( cd "${RUNNER_TEMP}/sample-sdk" \
             && dotnet build "${GITHUB_WORKSPACE}/samples/DatadogNet.Maui.Sample/DatadogNet.Maui.Sample.csproj" \
                  --configuration Release \
                  --framework "${{ matrix.tfm }}" \
+                 -p:TargetFrameworks="${{ matrix.tfm }}" \
                  ${{ matrix.args }} \
                  -p:DatadogPackageVersion="${{ inputs.version }}" )
 

@@ -73,9 +73,9 @@ Details: `DatadogNet.iOS/docs/release-notes/3.14.0.5.md` and
 Verified end-to-end on a physical iPhone 15 Pro Max: install, launch, SDK initialization, and
 runtime name-resolution of the previously missing classes.
 
-For this repository: device builds need DatadogNet.iOS packages at **3.14.0.5 or later** (the
-`DatadogNetiOSVersion` pin moves with the usual release flow). Nothing in the managed layer
-changes.
+For this repository: device builds need DatadogNet.iOS packages at **3.14.0.5 or later**, which is
+where `DatadogNetiOSVersion` now sits — so a consuming app gets the repair by restoring, with no
+project changes. Nothing in the managed layer changes.
 
 ## Upstream
 
