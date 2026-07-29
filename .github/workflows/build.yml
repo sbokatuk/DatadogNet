@@ -421,12 +421,19 @@ jobs:
 
       # Code signing off on iOS, because a public runner has neither a certificate nor a
       # provisioning profile, and neither affects whether the thing links.
+      #
+      # TargetFrameworks is narrowed to the one under test rather than relying on --framework:
+      # --framework picks which inner build runs, but the restore and the workload check still
+      # walk every TFM in the project, so the ios runner would be asked for the android workload
+      # (NETSDK1147) and the linux runner for the ios packs (NETSDK1178). The sample job gets away
+      # without this only because it installs all three workloads on one macOS runner.
       - name: Link the sample in Release
         run: |
           ( cd "${RUNNER_TEMP}/sample-sdk" \
             && dotnet build "${GITHUB_WORKSPACE}/samples/DatadogNet.Maui.Sample/DatadogNet.Maui.Sample.csproj" \
                  --configuration Release \
                  --framework "${{ matrix.tfm }}" \
+                 -p:TargetFrameworks="${{ matrix.tfm }}" \
                  ${{ matrix.args }} \
                  -p:DatadogPackageVersion="${{ inputs.version }}" )
 
