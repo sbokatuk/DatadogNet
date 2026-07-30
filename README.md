@@ -513,7 +513,7 @@ order, apart from the middle image level above.
 ## How this repository works
 
 ```
-nuget.org: DatadogNet.iOS 3.14.0.3   DatadogNet.Android 3.12.1.3   DatadogNet.Mac 3.14.0.2
+nuget.org: DatadogNet.iOS 3.14.0.5   DatadogNet.Android 3.12.1.3   DatadogNet.Mac 3.14.0.4
         │  (dd-sdk-ios 3.14.0)          │  (dd-sdk-android 3.12.1)     │  (dd-sdk-ios 3.14.0,
         │                               │                              │   built for Catalyst)
         └───────────────────────────────┼──────────────────────────────┘
