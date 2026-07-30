@@ -19,7 +19,11 @@
 #            NuGet package id
 #   confirm  download URL template with {version}, or "-" to derive it from the locator
 #
-# group	label	kind	pin	locator	confirm
-Platform packages	DatadogNet.*.Android	nuget	DatadogNetAndroidVersion	DatadogNet.Core.Android	-
-Platform packages	DatadogNet.*.iOS	nuget	DatadogNetiOSVersion	DatadogNet.Core.iOS	-
-Platform packages	DatadogNet.*.Mac	nuget	DatadogNetMacVersion	DatadogNet.Core.Mac	-
+#   source   owner/repo publishing the component - optional, and only meaningful on nuget
+#            rows, where the drift finding links that repository's release notes for the
+#            version it reports
+#
+# group	label	kind	pin	locator	confirm	source
+Platform packages	DatadogNet.*.Android	nuget	DatadogNetAndroidVersion	DatadogNet.Core.Android	-	sbokatuk/DatadogNet.Android
+Platform packages	DatadogNet.*.iOS	nuget	DatadogNetiOSVersion	DatadogNet.Core.iOS	-	sbokatuk/DatadogNet.iOS
+Platform packages	DatadogNet.*.Mac	nuget	DatadogNetMacVersion	DatadogNet.Core.Mac	-	sbokatuk/DatadogNet.Mac
