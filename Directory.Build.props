@@ -28,7 +28,7 @@
       docs/native-surface.md for what is covered.
     -->
     <DatadogNativeVersion>3.14.0</DatadogNativeVersion>
-    <DatadogBindingRevision>5</DatadogBindingRevision>
+    <DatadogBindingRevision>6</DatadogBindingRevision>
     <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
 
     <!--
@@ -69,7 +69,7 @@
       implementation to be honest about what it calls into; the fourth component is each
       repository's own.
     -->
-    <DatadogNetMacVersion>3.14.0.2</DatadogNetMacVersion>
+    <DatadogNetMacVersion>3.14.0.4</DatadogNetMacVersion>
   </PropertyGroup>
 
   <!--

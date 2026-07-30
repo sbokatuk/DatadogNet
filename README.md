@@ -82,8 +82,8 @@ Six packages. The version is `<dd-sdk-ios version>.<binding revision>` — `3.14
 Most apps need one or two lines:
 
 ```xml
-<PackageReference Include="DatadogNet.Maui" Version="3.14.0.5" />
-<PackageReference Include="DatadogNet.CrashReporting" Version="3.14.0.5" />
+<PackageReference Include="DatadogNet.Maui" Version="3.14.0.6" />
+<PackageReference Include="DatadogNet.CrashReporting" Version="3.14.0.6" />
 ```
 
 **Target frameworks.** `DatadogNet`, `DatadogNet.Extensions.DependencyInjection`,
@@ -174,7 +174,7 @@ silently:
 
 | DatadogNet | dd-sdk-ios | dd-sdk-android | DatadogNet.iOS pin | DatadogNet.Android pin | DatadogNet.Mac pin | .NET | Minimum OS |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 3.14.0.5 | 3.14.0 | 3.12.1 | 3.14.0.5 | 3.12.1.3 | 3.14.0.2 | net8 · net9 · net10 | Android 23 · iOS 12.2 · macCatalyst 15.0 (macOS 12) |
+| 3.14.0.6 | 3.14.0 | 3.12.1 | 3.14.0.5 | 3.12.1.3 | 3.14.0.4 | net8 · net9 · net10 | Android 23 · iOS 12.2 · macCatalyst 15.0 (macOS 12) |
 
 Earlier lines are on the [releases page](https://github.com/sbokatuk/DatadogNet/releases), each
 with the same numbers in its notes.
@@ -185,7 +185,7 @@ with the same numbers in its notes.
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DatadogNet.Maui" Version="3.14.0.5" />
+  <PackageReference Include="DatadogNet.Maui" Version="3.14.0.6" />
 </ItemGroup>
 ```
 
@@ -513,7 +513,7 @@ order, apart from the middle image level above.
 ## How this repository works
 
 ```
-nuget.org: DatadogNet.iOS 3.14.0.5   DatadogNet.Android 3.12.1.3   DatadogNet.Mac 3.14.0.2
+nuget.org: DatadogNet.iOS 3.14.0.5   DatadogNet.Android 3.12.1.3   DatadogNet.Mac 3.14.0.4
         │  (dd-sdk-ios 3.14.0)          │  (dd-sdk-android 3.12.1)     │  (dd-sdk-ios 3.14.0,
         │                               │                              │   built for Catalyst)
         └───────────────────────────────┼──────────────────────────────┘
@@ -600,11 +600,11 @@ dotnet test tests/DatadogNet.PackageTests
 Run the device checks against the packed packages:
 
 ```bash
-./.github/scripts/run-simulator-tests.sh 3.14.0.5 net8.0-ios18.0
+./.github/scripts/run-simulator-tests.sh 3.14.0.6 net8.0-ios18.0
 ```
 
 ```bash
-./.github/scripts/run-emulator-tests.sh 3.14.0.5 net8.0-android34.0
+./.github/scripts/run-emulator-tests.sh 3.14.0.6 net8.0-android34.0
 ```
 
 Any of the six platform target frameworks works. CI runs net8 and net10 — the oldest asset set, and
@@ -649,7 +649,7 @@ is a two-line edit and a test run. The exception is a major: see the note on 3.x
 
 ## Releasing
 
-Tag it. `v3.14.0.5` builds, tests, publishes all six packages to nuget.org via trusted publishing,
+Tag it. `v3.14.0.6` builds, tests, publishes all six packages to nuget.org via trusted publishing,
 and creates a GitHub release.
 
 Pull requests publish a `-beta.<pr>.<run>` prerelease of the whole set.
