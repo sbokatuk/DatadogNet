@@ -11,10 +11,10 @@
 - Six packages, listed once in `build/packages.tsv`: `DatadogNet`, `DatadogNet.CrashReporting`,
   `DatadogNet.WebView`, `DatadogNet.Maui`, `DatadogNet.Extensions.DependencyInjection`,
   `DatadogNet.Extensions.Diagnostics`.
-- Version **3.14.0.6** = `DatadogNativeVersion` + `DatadogBindingRevision` in
+- Version **3.14.0.7** = `DatadogNativeVersion` + `DatadogBindingRevision` in
   `Directory.Build.props`. It names the **dd-sdk-ios** line (Android is dd-sdk-android 3.12.1); the
   fourth component is this repository's own revision.
-- Platform pins, same file: `DatadogNetiOSVersion` 3.14.0.5, `DatadogNetAndroidVersion` 3.12.1.3
+- Platform pins, same file: `DatadogNetiOSVersion` 3.14.0.5, `DatadogNetAndroidVersion` 3.12.1.4
   (`DatadogAndroidNativeVersion` 3.12.1), `DatadogNetMacVersion` 3.14.0.4. NuGet packs each as a
   **minimum** (`>= x.y.z.r`), not an exact range: floating above a pin is deliberately supported for
   emergency binding patches, so never call these exact pins. The iOS pin is a floor with teeth —
