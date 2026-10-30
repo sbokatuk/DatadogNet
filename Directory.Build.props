@@ -133,6 +133,32 @@
     <DatadogTargetFrameworks>$(DatadogNetVersionMoniker);$(DatadogAndroidTargetFramework);$(DatadogiOSTargetFramework);$(DatadogMacTargetFramework)</DatadogTargetFrameworks>
   </PropertyGroup>
 
+  <!--
+    The Windows heads compile on the macOS runners (see EnableWindowsTargeting in DatadogNet.Maui),
+    so nothing in their build can need a Windows executable. Windows App SDK 1.8 changed that: it
+    moved its MSIX tooling into Microsoft.Windows.SDK.BuildTools.MSIX, whose targets run MakePri.exe
+    twice in an ordinary build - over every .pri among a project's references, to work out what to
+    copy to the output directory, and over the project's own resources. Microsoft.Maui.Controls
+    ships a .pri and MAUI has required Windows App SDK 1.8 since 10.0.40, so every net10 Windows
+    head fails on macOS, the package and WindowsHeadCheck alike:
+
+        error MSB6003: The specified task executable "MakePri.exe" could not be run.
+        System.ComponentModel.Win32Exception (8): An error occurred trying to start process
+        error APPX0002: Task 'WinAppSdkExpandPriContent' failed. Could not find file
+        '.../Microsoft.Maui.Controls.pri.xml'
+
+    AppxGeneratePriEnabled is the override those targets document, and both steps honour it.
+    IncludeProjectPriFile has to go with it, or pack still asks for the .pri that was never made
+    (NU5026); the MSIX targets set the same pair for a library with no PRI of its own. Off the
+    Windows host only: a Windows build can run MakePri, so it is left alone. Nothing is lost here,
+    because these heads have no XAML or other resources to index and no package this repository
+    has published carries a .pri.
+  -->
+  <PropertyGroup Condition=" !$([MSBuild]::IsOSPlatform('Windows')) ">
+    <AppxGeneratePriEnabled>false</AppxGeneratePriEnabled>
+    <IncludeProjectPriFile>false</IncludeProjectPriFile>
+  </PropertyGroup>
+
   <PropertyGroup>
     <!--
       12.2 on iOS because the Datadog frameworks are Swift and use the OS-provided Swift runtime,
